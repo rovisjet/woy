@@ -84,7 +84,7 @@ class _WheelCalendarState extends State<WheelCalendar> {
   late final List<Ring> rings;
   int? selectedRingIndex;
   double currentDay = 0;
-  List<double> ringDays = [0, 0, 0];
+  List<double> ringDays = List.generate(13, (index) => 0.0);
   bool isSliding = false;
   
   final DateFormat dateFormat = DateFormat('EEEE, MMMM d, yyyy');

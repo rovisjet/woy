@@ -14,31 +14,19 @@ class _WheelCalendarState extends State<WheelCalendar> {
   final List<Ring> rings = RingsData.rings;
   Ring? selectedRing;
 
-  void _handleTap(Offset position) {
-    final center = const Offset(200, 200);
-    final distance = (position - center).distance;
-
-    // Check rings from outer to inner
-    for (final ring in rings.reversed) {
-      if (distance >= ring.innerRadius && 
-          distance <= (ring.innerRadius + ring.thickness)) {
-        setState(() {
-          selectedRing = selectedRing == ring ? null : ring;
-        });
-        print('Selected ring: ${ring.name}');
-        break;
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTapDown: (details) => _handleTap(details.localPosition),
-      child: SizedBox(
-        width: 400,
-        height: 400,
+    return SizedBox(
+      width: 350,
+      height: 350,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTapDown: (details) {
+          final RenderBox box = context.findRenderObject() as RenderBox;
+          final center = Offset(box.size.width / 2, box.size.height / 2);
+          final position = details.localPosition;
+          _handleTap(position, center);
+        },
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -48,12 +36,28 @@ class _WheelCalendarState extends State<WheelCalendar> {
               dayRotation: 0,
               onTap: () => setState(() {
                 selectedRing = selectedRing == ring ? null : ring;
-                print('Selected ring: ${ring.name}');
               }),
             )).toList().reversed,
           ],
         ),
       ),
     );
+  }
+
+  void _handleTap(Offset position, Offset center) {
+    final distance = (position - center).distance;
+    
+    // Check rings from outer to inner
+    for (final ring in rings.reversed) {
+      final ringOuter = ring.innerRadius + ring.thickness;
+      final ringInner = ring.innerRadius;
+      
+      if (distance >= ringInner && distance <= ringOuter) {
+        setState(() {
+          selectedRing = selectedRing == ring ? null : ring;
+        });
+        break;
+      }
+    }
   }
 }
