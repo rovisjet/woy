@@ -316,18 +316,21 @@ class _WheelCalendarState extends State<WheelCalendar> {
   }
 
   void _onRingTap(int index) {
+    print('Tapped ring index: $index');
+    print('Current selectedRingIndex: $selectedRingIndex');
     setState(() {
-      final maxDays = rings[index].numberOfTicks.toDouble();
-      
-      if (currentDay > maxDays) {
-        currentDay = maxDays;
-        for (int i = 0; i < ringDays.length; i++) {
-          ringDays[i] = currentDay;
+      if (selectedRingIndex != index) {
+        selectedRingIndex = index;
+        final maxDays = rings[selectedRingIndex!].numberOfTicks.toDouble();
+        if (currentDay > maxDays) {
+          currentDay = maxDays;
+          for (int i = 0; i < ringDays.length; i++) {
+            ringDays[i] = currentDay;
+          }
         }
       }
-      
-      selectedRingIndex = index;
     });
+    print('New selectedRingIndex: $selectedRingIndex');
   }
 
   void _onSliderChanged(double value) {
@@ -348,7 +351,8 @@ class _WheelCalendarState extends State<WheelCalendar> {
   }
 
   Color _getSelectedRingColor() {
-    return selectedRingIndex == null ? Colors.grey : rings[selectedRingIndex!].baseColor;
+    if (selectedRingIndex == null) return Colors.grey;
+    return rings[selectedRingIndex!].baseColor;
   }
 
   double _getSliderMax() {
@@ -374,22 +378,36 @@ class _WheelCalendarState extends State<WheelCalendar> {
         SizedBox(
           width: 400,
           height: 400,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              ...rings.map((ring) => RingWidget(
-                index: ring.index,
-                innerRadius: ring.innerRadius,
-                thickness: ring.thickness,
-                numberOfTicks: ring.numberOfTicks,
-                baseColor: ring.baseColor,
-                isSelected: selectedRingIndex == ring.index,
-                dayRotation: ringDays[ring.index],
-                animationEnabled: !isSliding || selectedRingIndex == ring.index,
-                eras: ring.eras,
-              )).toList().reversed,
-              CentralCircle(radius: 50, onTap: _showDailySnapshot),
-            ],
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (details) {
+              final center = Offset(200, 200);
+              final distance = (details.localPosition - center).distance;
+              print('Tap distance from center: $distance');
+              
+              // Check rings from outer to inner
+              for (var ring in rings.reversed) {
+                if (distance >= ring.innerRadius && 
+                    distance <= (ring.innerRadius + ring.thickness)) {
+                  print('Hit ring: ${ring.name} (index: ${ring.index})');
+                  _onRingTap(ring.index);
+                  break;
+                }
+              }
+            },
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                ...rings.map((ring) => RingWidget(
+                  ring: ring,
+                  isSelected: selectedRingIndex == ring.index,
+                  onTap: () {}, // Empty callback since we handle taps above
+                  dayRotation: ringDays[ring.index],
+                  animationEnabled: !isSliding || selectedRingIndex == ring.index,
+                )).toList().reversed,
+                CentralCircle(radius: 50, onTap: _showDailySnapshot),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 20),
@@ -405,12 +423,16 @@ class _WheelCalendarState extends State<WheelCalendar> {
                   thumbColor: _getSelectedRingColor(),
                   overlayColor: _getSelectedRingColor().withOpacity(0.3),
                   valueIndicatorColor: _getSelectedRingColor(),
+                  tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 2),
+                  activeTickMarkColor: _getSelectedRingColor(),
+                  inactiveTickMarkColor: _getSelectedRingColor().withOpacity(0.5),
+                  showValueIndicator: ShowValueIndicator.always,
                 ),
                 child: Slider(
                   value: currentDay,
                   min: 0,
                   max: _getSliderMax(),
-                  divisions: selectedRingIndex != null ? _getSliderMax().toInt() : 1,
+                  divisions: selectedRingIndex != null ? rings[selectedRingIndex!].numberOfTicks : 1,
                   label: _getSliderLabel(currentDay),
                   onChanged: selectedRingIndex != null ? _onSliderChanged : null,
                   onChangeEnd: selectedRingIndex != null ? _onSliderChangeEnd : null,

@@ -1,36 +1,28 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
-import '../../models/era_model.dart';
+import '../models/ring_model.dart';
 
 class RingWidget extends StatefulWidget {
-  final int index;
-  final double innerRadius;
-  final double thickness;
-  final int numberOfTicks;
-  final Color baseColor;
+  final Ring ring;
   final bool isSelected;
+  final VoidCallback onTap;
   final double dayRotation;
   final bool animationEnabled;
-  final List<Era> eras;
 
   const RingWidget({
     Key? key,
-    required this.index,
-    required this.innerRadius,
-    required this.thickness,
-    required this.numberOfTicks,
-    required this.baseColor,
+    required this.ring,
     required this.isSelected,
+    required this.onTap,
     required this.dayRotation,
-    required this.animationEnabled,
-    required this.eras,
+    this.animationEnabled = true,
   }) : super(key: key);
 
   @override
-  State<RingWidget> createState() => _RingState();
+  State<RingWidget> createState() => _RingWidgetState();
 }
 
-class _RingState extends State<RingWidget> with SingleTickerProviderStateMixin {
+class _RingWidgetState extends State<RingWidget> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _rotationAnimation;
   double _currentRotation = 0;
@@ -61,7 +53,7 @@ class _RingState extends State<RingWidget> with SingleTickerProviderStateMixin {
   void didUpdateWidget(RingWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.dayRotation != widget.dayRotation) {
-      final newRotation = (widget.dayRotation * 2 * math.pi) / widget.numberOfTicks;
+      final newRotation = (widget.dayRotation * 2 * math.pi) / widget.ring.numberOfTicks;
       
       if (widget.animationEnabled) {
         _rotationAnimation = Tween<double>(
@@ -87,107 +79,32 @@ class _RingState extends State<RingWidget> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 400,
-      height: 400,
-      child: AnimatedBuilder(
-        animation: _rotationAnimation,
-        builder: (context, child) {
-          return Transform.rotate(
-            angle: _rotationAnimation.value,
-            child: CustomPaint(
-              size: const Size(400, 400),
-              painter: RingPainter(
-                innerRadius: widget.innerRadius,
-                thickness: widget.thickness,
-                numberOfTicks: widget.numberOfTicks,
-                baseColor: widget.baseColor,
-                isSelected: widget.isSelected,
-                eras: widget.eras,
-              ),
+    return AnimatedBuilder(
+      animation: _rotationAnimation,
+      builder: (context, child) {
+        return Transform.rotate(
+          angle: _rotationAnimation.value,
+          child: CustomPaint(
+            size: const Size(400, 400),
+            painter: RingPainter(
+              ring: widget.ring,
+              isSelected: widget.isSelected,
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
 class RingPainter extends CustomPainter {
-  final double innerRadius;
-  final double thickness;
-  final int numberOfTicks;
-  final Color baseColor;
+  final Ring ring;
   final bool isSelected;
-  final List<Era> eras;
-  
+
   RingPainter({
-    required this.innerRadius,
-    required this.thickness,
-    required this.numberOfTicks,
-    required this.baseColor,
+    required this.ring,
     required this.isSelected,
-    required this.eras,
   });
-
- @override
-void paint(Canvas canvas, Size size) {
-  final center = Offset(size.width / 2, size.height / 2);
-  
-  // Draw eras
-  for (var era in eras) {
-    final startAngle = (era.startDay * 2 * math.pi) / numberOfTicks;
-    final sweepAngle = ((era.endDay - era.startDay) * 2 * math.pi) / numberOfTicks;
-    
-    final eraPaint = Paint()
-      ..color = era.color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = thickness;
-    
-    canvas.drawArc(
-      Rect.fromCircle(
-        center: center,
-        radius: innerRadius + (thickness / 2),
-      ),
-      startAngle - math.pi / 2, // Adjust to start from top
-      sweepAngle,
-      false,
-      eraPaint,
-    );
-
-    // Calculate middle angle for label placement
-    final middleAngle = startAngle + (sweepAngle / 2) - math.pi / 2;
-    _drawEraLabel(
-      canvas,
-      center,
-      era.name,
-      middleAngle,
-      innerRadius + (thickness / 2),
-    );
-  }
-    
-    // Draw tick marks
-    final tickPaint = Paint()
-      ..color = isSelected ? baseColor : baseColor.withOpacity(0.7)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = isSelected ? 2.0 : 1.0;
-    
-    final tickLength = isSelected ? 8.0 : 5.0;
-    
-    for (int i = 0; i < numberOfTicks; i++) {
-      final angle = (2 * math.pi * i) / numberOfTicks;
-      final outerPoint = Offset(
-        center.dx + (innerRadius + thickness) * math.cos(angle),
-        center.dy + (innerRadius + thickness) * math.sin(angle)
-      );
-      final innerPoint = Offset(
-        center.dx + (innerRadius + thickness - tickLength) * math.cos(angle),
-        center.dy + (innerRadius + thickness - tickLength) * math.sin(angle)
-      );
-      
-      canvas.drawLine(innerPoint, outerPoint, tickPaint);
-    }
-  }
 
   void _drawEraLabel(Canvas canvas, Offset center, String text, double angle, double radius) {
     final textPainter = TextPainter(
@@ -214,5 +131,66 @@ void paint(Canvas canvas, Size size) {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    
+    // Draw eras
+    for (var era in ring.eras) {
+      final startAngle = (era.startDay * 2 * math.pi) / ring.numberOfTicks;
+      final sweepAngle = ((era.endDay - era.startDay) * 2 * math.pi) / ring.numberOfTicks;
+      
+      final eraPaint = Paint()
+        ..color = era.color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = ring.thickness;
+      
+      canvas.drawArc(
+        Rect.fromCircle(
+          center: center,
+          radius: ring.innerRadius + (ring.thickness / 2),
+        ),
+        startAngle - math.pi / 2, // Adjust to start from top
+        sweepAngle,
+        false,
+        eraPaint,
+      );
+
+      // Draw era label
+      final middleAngle = startAngle + (sweepAngle / 2) - math.pi / 2;
+      _drawEraLabel(
+        canvas,
+        center,
+        era.name,
+        middleAngle,
+        ring.innerRadius + (ring.thickness / 2),
+      );
+    }
+    
+    // Draw tick marks
+    final tickPaint = Paint()
+      ..color = isSelected ? ring.baseColor : ring.baseColor.withOpacity(0.7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = isSelected ? 2.0 : 1.0;
+    
+    final tickLength = isSelected ? 8.0 : 5.0;
+    
+    for (int i = 0; i < ring.numberOfTicks; i++) {
+      final angle = (2 * math.pi * i) / ring.numberOfTicks;
+      final outerPoint = Offset(
+        center.dx + (ring.innerRadius + ring.thickness) * math.cos(angle),
+        center.dy + (ring.innerRadius + ring.thickness) * math.sin(angle)
+      );
+      final innerPoint = Offset(
+        center.dx + (ring.innerRadius + ring.thickness - tickLength) * math.cos(angle),
+        center.dy + (ring.innerRadius + ring.thickness - tickLength) * math.sin(angle)
+      );
+      
+      canvas.drawLine(innerPoint, outerPoint, tickPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(RingPainter oldDelegate) {
+    return oldDelegate.isSelected != isSelected || oldDelegate.ring != ring;
+  }
 }

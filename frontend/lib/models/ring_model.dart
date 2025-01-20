@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'era_model.dart';
-import '../widgets/daily_snapshot_modal.dart';
 
 class Ring {
   final int index;
@@ -10,7 +9,7 @@ class Ring {
   final int numberOfTicks;
   final Color baseColor;
   final List<Era> eras;
-  final List<DayEvent> events;
+  final List<dynamic> events;
 
   const Ring({
     required this.index,
