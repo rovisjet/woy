@@ -8,6 +8,7 @@ class RingWidget extends StatefulWidget {
   final VoidCallback onTap;
   final double dayRotation;
   final bool animationEnabled;
+  final bool showLabels;
 
   const RingWidget({
     Key? key,
@@ -16,6 +17,7 @@ class RingWidget extends StatefulWidget {
     required this.onTap,
     required this.dayRotation,
     this.animationEnabled = true,
+    this.showLabels = false,
   }) : super(key: key);
 
   @override
@@ -89,6 +91,7 @@ class _RingWidgetState extends State<RingWidget> with SingleTickerProviderStateM
             painter: RingPainter(
               ring: widget.ring,
               isSelected: widget.isSelected,
+              showLabels: widget.showLabels,
             ),
           ),
         );
@@ -100,25 +103,81 @@ class _RingWidgetState extends State<RingWidget> with SingleTickerProviderStateM
 class RingPainter extends CustomPainter {
   final Ring ring;
   final bool isSelected;
+  final bool showLabels;
 
   RingPainter({
     required this.ring,
     required this.isSelected,
+    this.showLabels = false,
   });
 
-  void _drawEraLabel(Canvas canvas, Offset center, String text, double angle, double radius) {
+  // Generate a thematic color based on the base color and a percentage
+  Color _getThematicColor(Color baseColor, double percentage) {
+    try {
+      // Create variations based on the base color
+      if (percentage < 0.25) {
+        // Lighter version
+        return HSLColor.fromColor(baseColor).withLightness(
+          (HSLColor.fromColor(baseColor).lightness + 0.2).clamp(0.0, 1.0)
+        ).toColor();
+      } else if (percentage < 0.5) {
+        // Slightly lighter
+        return HSLColor.fromColor(baseColor).withLightness(
+          (HSLColor.fromColor(baseColor).lightness + 0.1).clamp(0.0, 1.0)
+        ).toColor();
+      } else if (percentage < 0.75) {
+        // Slightly darker
+        return HSLColor.fromColor(baseColor).withLightness(
+          (HSLColor.fromColor(baseColor).lightness - 0.1).clamp(0.0, 1.0)
+        ).toColor();
+      } else {
+        // Darker version
+        return HSLColor.fromColor(baseColor).withLightness(
+          (HSLColor.fromColor(baseColor).lightness - 0.2).clamp(0.0, 1.0)
+        ).toColor();
+      }
+    } catch (e) {
+      // Fallback to base color if any error occurs
+      return baseColor;
+    }
+  }
+
+  void _drawEraLabel(Canvas canvas, Offset center, String text, double angle, double radius, double sweepAngle) {
+    if (!showLabels) return;
+    
+    final arcLength = sweepAngle * radius;
+    if (arcLength < 20) return;
+
+    double fontSize = 12.0;
+    if (arcLength < 60) fontSize = 10.0;
+    if (arcLength < 40) fontSize = 8.0;
+    
     final textPainter = TextPainter(
       text: TextSpan(
         text: text,
-        style: const TextStyle(
+        style: TextStyle(
           color: Colors.white,
-          fontSize: 12,
+          fontSize: fontSize,
           fontWeight: FontWeight.bold,
         ),
       ),
       textDirection: TextDirection.ltr,
     );
     textPainter.layout();
+    
+    String displayText = text;
+    if (textPainter.width > arcLength * 0.8 && text.length > 5) {
+      displayText = text.substring(0, 5) + '...';
+      textPainter.text = TextSpan(
+        text: displayText,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: fontSize,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+      textPainter.layout();
+    }
 
     final double x = center.dx + radius * math.cos(angle);
     final double y = center.dy + radius * math.sin(angle);
@@ -136,45 +195,66 @@ class RingPainter extends CustomPainter {
     
     // Draw eras
     for (var era in ring.eras) {
-      final startAngle = (era.startDay * 2 * math.pi) / ring.numberOfTicks;
-      final sweepAngle = ((era.endDay - era.startDay) * 2 * math.pi) / ring.numberOfTicks;
-      
-      final eraPaint = Paint()
-        ..color = era.color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = ring.thickness;
-      
-      canvas.drawArc(
-        Rect.fromCircle(
-          center: center,
-          radius: ring.innerRadius + (ring.thickness / 2),
-        ),
-        startAngle - math.pi / 2, // Adjust to start from top
-        sweepAngle,
-        false,
-        eraPaint,
-      );
+      try {
+        final startAngle = (era.startDay * 2 * math.pi) / ring.numberOfTicks;
+        final sweepAngle = ((era.endDay - era.startDay) * 2 * math.pi) / ring.numberOfTicks;
+        
+        // Ensure we have valid angles
+        if (sweepAngle <= 0 || startAngle.isNaN || sweepAngle.isNaN) continue;
+        
+        // Calculate percentage through the cycle for thematic coloring
+        final percentage = era.startDay / ring.numberOfTicks;
+        
+        // Use thematic color based on the ring's base color
+        final Color eraColor = _getThematicColor(ring.baseColor, percentage);
+        
+        final eraPaint = Paint()
+          ..color = eraColor
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = ring.thickness
+          ..strokeCap = StrokeCap.round;
+        
+        canvas.drawArc(
+          Rect.fromCircle(
+            center: center,
+            radius: ring.innerRadius + (ring.thickness / 2),
+          ),
+          startAngle - math.pi / 2, // Adjust to start from top
+          sweepAngle,
+          false,
+          eraPaint,
+        );
 
-      // Draw era label
-      final middleAngle = startAngle + (sweepAngle / 2) - math.pi / 2;
-      _drawEraLabel(
-        canvas,
-        center,
-        era.name,
-        middleAngle,
-        ring.innerRadius + (ring.thickness / 2),
-      );
+        // Draw era label
+        final middleAngle = startAngle + (sweepAngle / 2) - math.pi / 2;
+        _drawEraLabel(
+          canvas,
+          center,
+          era.name,
+          middleAngle,
+          ring.innerRadius + (ring.thickness / 2),
+          sweepAngle,
+        );
+      } catch (e) {
+        // Skip this era if there's an error
+        continue;
+      }
     }
     
     // Draw tick marks
     final tickPaint = Paint()
-      ..color = isSelected ? ring.baseColor : ring.baseColor.withOpacity(0.7)
+      ..color = isSelected 
+          ? ring.baseColor.withOpacity(0.9) 
+          : ring.baseColor.withOpacity(0.5)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = isSelected ? 2.0 : 1.0;
+      ..strokeWidth = isSelected ? 1.5 : 0.8;
     
-    final tickLength = isSelected ? 8.0 : 5.0;
+    final tickLength = isSelected ? 6.0 : 4.0;
     
-    for (int i = 0; i < ring.numberOfTicks; i++) {
+    // Draw fewer ticks for better performance
+    final tickInterval = math.max(1, (ring.numberOfTicks / 60).ceil());
+    
+    for (int i = 0; i < ring.numberOfTicks; i += tickInterval) {
       final angle = (2 * math.pi * i) / ring.numberOfTicks;
       final outerPoint = Offset(
         center.dx + (ring.innerRadius + ring.thickness) * math.cos(angle),
@@ -191,6 +271,8 @@ class RingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(RingPainter oldDelegate) {
-    return oldDelegate.isSelected != isSelected || oldDelegate.ring != ring;
+    return oldDelegate.isSelected != isSelected || 
+           oldDelegate.ring != ring || 
+           oldDelegate.showLabels != showLabels;
   }
 }

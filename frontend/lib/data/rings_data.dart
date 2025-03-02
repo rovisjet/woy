@@ -5,15 +5,24 @@ import '../models/era_model.dart';
 class RingsData {
   static const double CANVAS_SIZE = 400.0;
   static const double CENTER_CIRCLE_RADIUS = 50.0;
-  static const double DEFAULT_THICKNESS = 25.0;
+  static const double DEFAULT_THICKNESS = 20.0; // Slightly thinner rings
+  static const double RING_SPACING = 10.0; // Add spacing between rings
 
   static double _calculateInnerRadius(int ringIndex, int totalRings) {
     // Available space is from center circle to edge of canvas
     double availableSpace = (CANVAS_SIZE / 2) - CENTER_CIRCLE_RADIUS;
-    // Space per ring (including gaps)
-    double spacePerRing = availableSpace / totalRings;
-    // Inner radius for this ring
-    return CENTER_CIRCLE_RADIUS + (ringIndex * spacePerRing);
+    // Total space needed for all rings and gaps
+    double totalRingSpace = (totalRings * DEFAULT_THICKNESS) + ((totalRings - 1) * RING_SPACING);
+    // Scale factor to fit everything
+    double scaleFactor = availableSpace / totalRingSpace;
+    
+    // Calculate inner radius with spacing
+    double innerRadius = CENTER_CIRCLE_RADIUS;
+    for (int i = 0; i < ringIndex; i++) {
+      innerRadius += (DEFAULT_THICKNESS * scaleFactor) + (RING_SPACING * scaleFactor);
+    }
+    
+    return innerRadius;
   }
 
   static final List<Ring> rings = _initializeRings();

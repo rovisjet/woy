@@ -86,6 +86,7 @@ class _WheelCalendarState extends State<WheelCalendar> {
   double currentDay = 0;
   List<double> ringDays = List.generate(13, (index) => 0.0);
   bool isSliding = false;
+  bool showLabels = false;
   
   final DateFormat dateFormat = DateFormat('EEEE, MMMM d, yyyy');
   final easternTimeZone = DateTime.now().toUtc().subtract(const Duration(hours: 5));
@@ -375,6 +376,31 @@ class _WheelCalendarState extends State<WheelCalendar> {
             ),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Checkbox(
+                value: showLabels,
+                onChanged: (value) {
+                  setState(() {
+                    showLabels = value ?? false;
+                  });
+                },
+                activeColor: _getSelectedRingColor(),
+                checkColor: Colors.white,
+              ),
+              const Text(
+                'Show Labels',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
         SizedBox(
           width: 400,
           height: 400,
@@ -404,6 +430,7 @@ class _WheelCalendarState extends State<WheelCalendar> {
                   onTap: () {}, // Empty callback since we handle taps above
                   dayRotation: ringDays[ring.index],
                   animationEnabled: !isSliding || selectedRingIndex == ring.index,
+                  showLabels: showLabels,
                 )).toList().reversed,
                 CentralCircle(radius: 50, onTap: _showDailySnapshot),
               ],
