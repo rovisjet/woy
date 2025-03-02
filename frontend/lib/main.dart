@@ -6,6 +6,7 @@ import 'models/ring_model.dart';
 import 'package:intl/intl.dart';
 import 'screens/ring_list_view.dart';
 import 'data/rings_data.dart';
+import 'dart:math' as math;
 
 void main() {
   runApp(const MyApp());
@@ -337,16 +338,21 @@ class _WheelCalendarState extends State<WheelCalendar> {
   void _onSliderChanged(double value) {
     setState(() {
       isSliding = true;
-      currentDay = value;
-      ringDays[selectedRingIndex!] = value;
+      // Ensure value is within bounds
+      final maxDays = rings[selectedRingIndex!].numberOfTicks.toDouble();
+      currentDay = value.clamp(0, maxDays);
+      ringDays[selectedRingIndex!] = currentDay;
     });
   }
 
   void _onSliderChangeEnd(double value) {
     setState(() {
       isSliding = false;
+      // Ensure value is within bounds
+      final maxDays = rings[selectedRingIndex!].numberOfTicks.toDouble();
+      currentDay = value.clamp(0, maxDays);
       for (int i = 0; i < ringDays.length; i++) {
-        ringDays[i] = value;
+        ringDays[i] = currentDay;
       }
     });
   }
@@ -360,13 +366,42 @@ class _WheelCalendarState extends State<WheelCalendar> {
     return selectedRingIndex == null ? 0 : rings[selectedRingIndex!].numberOfTicks.toDouble();
   }
 
+  int _calculateDivisionsForRing(int numberOfTicks) {
+    // Calculate appropriate divisions that make sense for the number of ticks
+    // The goal is to show logical intervals (e.g. 5, 10, 30 days) without overwhelming the UI
+    
+    // For very small cycles (< 30 days), show all days
+    if (numberOfTicks <= 30) {
+      return numberOfTicks - 1;
+    }
+    
+    // For medium cycles, show intervals that are easily counted
+    else if (numberOfTicks <= 60) {
+      return (numberOfTicks ~/ 2); // Show every 2 days
+    }
+    else if (numberOfTicks <= 120) {
+      return (numberOfTicks ~/ 5); // Show every 5 days
+    }
+    else if (numberOfTicks <= 180) {
+      return (numberOfTicks ~/ 10); // Show every 10 days
+    }
+    // For annual cycles, show monthly or bi-weekly intervals
+    else if (numberOfTicks <= 366) {
+      // For a year, show approximately monthly intervals
+      return (numberOfTicks ~/ 30); // ~12 divisions for a year
+    }
+    
+    // For very large cycles, limit to reasonable number of tick marks
+    return (numberOfTicks ~/ (numberOfTicks / 20)).toInt(); // About 20 marks max
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.only(bottom: 5),
           child: Text(
             _getDayLabel(currentDay),
             style: const TextStyle(
@@ -376,6 +411,36 @@ class _WheelCalendarState extends State<WheelCalendar> {
             ),
           ),
         ),
+        if (selectedRingIndex != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 15),
+            child: AnimatedOpacity(
+              opacity: 1.0,
+              duration: const Duration(milliseconds: 300),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                decoration: BoxDecoration(
+                  color: rings[selectedRingIndex!].baseColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: rings[selectedRingIndex!].baseColor.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  rings[selectedRingIndex!].name,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: rings[selectedRingIndex!].baseColor,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+          )
+        else
+          const SizedBox(height: 30),
         Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: Row(
@@ -444,26 +509,74 @@ class _WheelCalendarState extends State<WheelCalendar> {
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Opacity(
               opacity: selectedRingIndex != null ? 1.0 : 0.0,
-              child: SliderTheme(
-                data: SliderThemeData(
-                  activeTrackColor: _getSelectedRingColor(),
-                  thumbColor: _getSelectedRingColor(),
-                  overlayColor: _getSelectedRingColor().withOpacity(0.3),
-                  valueIndicatorColor: _getSelectedRingColor(),
-                  tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 2),
-                  activeTickMarkColor: _getSelectedRingColor(),
-                  inactiveTickMarkColor: _getSelectedRingColor().withOpacity(0.5),
-                  showValueIndicator: ShowValueIndicator.always,
-                ),
-                child: Slider(
-                  value: currentDay,
-                  min: 0,
-                  max: _getSliderMax(),
-                  divisions: selectedRingIndex != null ? rings[selectedRingIndex!].numberOfTicks : 1,
-                  label: _getSliderLabel(currentDay),
-                  onChanged: selectedRingIndex != null ? _onSliderChanged : null,
-                  onChangeEnd: selectedRingIndex != null ? _onSliderChangeEnd : null,
-                ),
+              child: Row(
+                children: [
+                  // Previous day button
+                  IconButton(
+                    icon: Icon(
+                      Icons.chevron_left,
+                      color: _getSelectedRingColor(),
+                    ),
+                    onPressed: selectedRingIndex != null ? () {
+                      if (currentDay > 0) {
+                        setState(() {
+                          currentDay = currentDay - 1;
+                          ringDays[selectedRingIndex!] = currentDay;
+                          for (int i = 0; i < ringDays.length; i++) {
+                            ringDays[i] = currentDay;
+                          }
+                        });
+                      }
+                    } : null,
+                  ),
+                  // Slider with appropriate tick marks
+                  Expanded(
+                    child: SliderTheme(
+                      data: SliderThemeData(
+                        activeTrackColor: _getSelectedRingColor(),
+                        thumbColor: _getSelectedRingColor(),
+                        overlayColor: _getSelectedRingColor().withOpacity(0.3),
+                        valueIndicatorColor: _getSelectedRingColor(),
+                        tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 3),
+                        activeTickMarkColor: _getSelectedRingColor().withOpacity(0.9),
+                        inactiveTickMarkColor: _getSelectedRingColor().withOpacity(0.6),
+                        showValueIndicator: ShowValueIndicator.always,
+                        trackHeight: 2.5,
+                      ),
+                      child: Slider(
+                        value: currentDay,
+                        min: 0,
+                        max: _getSliderMax(),
+                        // Calculate appropriate number of divisions based on available width
+                        divisions: selectedRingIndex != null 
+                          ? _calculateDivisionsForRing(rings[selectedRingIndex!].numberOfTicks) 
+                          : 1,
+                        label: _getSliderLabel(currentDay),
+                        onChanged: selectedRingIndex != null ? _onSliderChanged : null,
+                        onChangeEnd: selectedRingIndex != null ? _onSliderChangeEnd : null,
+                      ),
+                    ),
+                  ),
+                  // Next day button
+                  IconButton(
+                    icon: Icon(
+                      Icons.chevron_right,
+                      color: _getSelectedRingColor(),
+                    ),
+                    onPressed: selectedRingIndex != null ? () {
+                      final maxDays = rings[selectedRingIndex!].numberOfTicks.toDouble();
+                      if (currentDay < maxDays - 1) {
+                        setState(() {
+                          currentDay = currentDay + 1;
+                          ringDays[selectedRingIndex!] = currentDay;
+                          for (int i = 0; i < ringDays.length; i++) {
+                            ringDays[i] = currentDay;
+                          }
+                        });
+                      }
+                    } : null,
+                  ),
+                ],
               ),
             ),
           ),
