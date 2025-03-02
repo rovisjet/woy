@@ -202,105 +202,6 @@ class _WheelCalendarState extends State<WheelCalendar> {
     );
   }
 
-  List<Era> _getMenstrualEras() {
-    return [
-      Era(
-        name: 'Menstrual',
-        description: 'Menstrual phase',
-        startDay: 0,
-        endDay: 5,
-        color: Colors.pink.shade300,
-      ),
-      Era(
-        name: 'Follicular',
-        description: 'Follicular phase',
-        startDay: 5,
-        endDay: 14,
-        color: Colors.pink.shade400,
-      ),
-      Era(
-        name: 'Ovulation',
-        description: 'Ovulation phase',
-        startDay: 14,
-        endDay: 16,
-        color: Colors.pink.shade500,
-      ),
-      Era(
-        name: 'Luteal',
-        description: 'Luteal phase',
-        startDay: 16,
-        endDay: 28,
-        color: Colors.pink.shade600,
-      ),
-    ];
-  }
-
-  List<Era> _getMoonEras() {
-    return [
-      Era(
-        name: 'New Moon',
-        description: 'New Moon phase',
-        startDay: 0,
-        endDay: 7.25,
-        color: Colors.blue.shade300,
-      ),
-      Era(
-        name: 'Waxing',
-        description: 'First Quarter',
-        startDay: 7.25,
-        endDay: 14.5,
-        color: Colors.blue.shade400,
-      ),
-      Era(
-        name: 'Full Moon',
-        description: 'Full Moon phase',
-        startDay: 14.5,
-        endDay: 21.75,
-        color: Colors.blue.shade500,
-      ),
-      Era(
-        name: 'Waning',
-        description: 'Last Quarter',
-        startDay: 21.75,
-        endDay: 29,
-        color: Colors.blue.shade600,
-      ),
-    ];
-  }
-
-  List<Era> _getAnnualEras() {
-    return [
-      Era(
-        name: 'Spring',
-        description: 'Spring season',
-        startDay: 0,
-        endDay: 91.25,
-        color: Colors.green.shade300,
-      ),
-      Era(
-        name: 'Summer',
-        description: 'Summer season',
-        startDay: 91.25,
-        endDay: 182.5,
-        color: Colors.green.shade400,
-      ),
-      Era(
-        name: 'Fall',
-        description: 'Fall season',
-        startDay: 182.5,
-        endDay: 273.75,
-        color: Colors.green.shade500,
-      ),
-      Era(
-        name: 'Winter',
-        description: 'Winter season',
-        startDay: 273.75,
-        endDay: 365,
-        color: Colors.green.shade600,
-      ),
-    ];
-  }
-
   String _getDayLabel(double value) {
     if (value == 0) {
       return 'Today';
@@ -318,8 +219,6 @@ class _WheelCalendarState extends State<WheelCalendar> {
   }
 
   void _onRingTap(int index) {
-    print('Tapped ring index: $index');
-    print('Current selectedRingIndex: $selectedRingIndex');
     setState(() {
       if (selectedRingIndex != index) {
         selectedRingIndex = index;
@@ -332,7 +231,6 @@ class _WheelCalendarState extends State<WheelCalendar> {
         }
       }
     });
-    print('New selectedRingIndex: $selectedRingIndex');
   }
 
   void _onSliderChanged(double value) {
@@ -387,7 +285,6 @@ class _WheelCalendarState extends State<WheelCalendar> {
     }
     // For annual cycles, show monthly or bi-weekly intervals
     else if (numberOfTicks <= 366) {
-      // For a year, show approximately monthly intervals
       return (numberOfTicks ~/ 30); // ~12 divisions for a year
     }
     
@@ -474,13 +371,11 @@ class _WheelCalendarState extends State<WheelCalendar> {
             onTapDown: (details) {
               final center = Offset(200, 200);
               final distance = (details.localPosition - center).distance;
-              print('Tap distance from center: $distance');
               
               // Check rings from outer to inner
               for (var ring in rings.reversed) {
                 if (distance >= ring.innerRadius && 
                     distance <= (ring.innerRadius + ring.thickness)) {
-                  print('Hit ring: ${ring.name} (index: ${ring.index})');
                   _onRingTap(ring.index);
                   break;
                 }
