@@ -3,12 +3,51 @@ import '../models/ring_model.dart';
 import 'ring_detail_view.dart';
 import '../data/rings_data.dart';
 
-class RingListView extends StatelessWidget {
+class RingListView extends StatefulWidget {
   const RingListView({Key? key}) : super(key: key);
 
   @override
+  State<RingListView> createState() => _RingListViewState();
+}
+
+class _RingListViewState extends State<RingListView> {
+  List<Ring> rings = [];
+  bool isLoading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Initially use the static rings data
+    rings = RingsData.rings;
+    // Then fetch from API
+    _fetchRings();
+  }
+
+  Future<void> _fetchRings() async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = '';
+      });
+      
+      final fetchedRings = await RingsData.fetchRings();
+      
+      setState(() {
+        rings = fetchedRings;
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Error fetching rings: $e');
+      setState(() {
+        errorMessage = 'Failed to load rings: $e';
+        isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final rings = RingsData.rings;  // Use shared rings data
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -22,25 +61,53 @@ class RingListView extends StatelessWidget {
           'Rings',
           style: TextStyle(color: Colors.white),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _fetchRings,
+          ),
+        ],
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: rings.length,
-        itemBuilder: (context, index) {
-          final ring = rings[index];
-          return RingCard(
-            ring: ring,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => RingDetailView(ring: ring),
+      body: isLoading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : errorMessage.isNotEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        errorMessage,
+                        style: const TextStyle(color: Colors.red),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: _fetchRings,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: rings.length,
+                  itemBuilder: (context, index) {
+                    final ring = rings[index];
+                    return RingCard(
+                      ring: ring,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => RingDetailView(ring: ring),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
-              );
-            },
-          );
-        },
-      ),
     );
   }
 }

@@ -82,12 +82,13 @@ class WheelCalendar extends StatefulWidget {
 }
 
 class _WheelCalendarState extends State<WheelCalendar> {
-  late final List<Ring> rings;
+  late List<Ring> rings;
   int? selectedRingIndex;
   double currentDay = 0;
   List<double> ringDays = List.generate(13, (index) => 0.0);
   bool isSliding = false;
   bool showLabels = false;
+  bool isLoading = true;
   
   final DateFormat dateFormat = DateFormat('EEEE, MMMM d, yyyy');
   final easternTimeZone = DateTime.now().toUtc().subtract(const Duration(hours: 5));
@@ -95,7 +96,30 @@ class _WheelCalendarState extends State<WheelCalendar> {
   @override
   void initState() {
     super.initState();
+    // Initially use the fallback data
     rings = RingsData.rings;
+    // Then fetch from API
+    _fetchRingsFromApi();
+  }
+
+  Future<void> _fetchRingsFromApi() async {
+    try {
+      setState(() {
+        isLoading = true;
+      });
+      
+      final fetchedRings = await RingsData.fetchRings();
+      
+      setState(() {
+        rings = fetchedRings;
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Error in _fetchRingsFromApi: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
   void _showDailySnapshot() {
@@ -294,6 +318,25 @@ class _WheelCalendarState extends State<WheelCalendar> {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 20),
+            Text(
+              'Loading rings data...',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [

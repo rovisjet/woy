@@ -31,6 +31,7 @@ environment:
 dependencies:
   intl: ^0.18.0  # or whatever the latest version is
   flutter_svg: ^1.1.6  # Package to render SVG files
+  http: ^1.1.0  # Package for making HTTP requests
 
   flutter:
     sdk: flutter

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/ring_model.dart';
 import '../models/era_model.dart';
+import '../services/api_service.dart';
 
 class RingsData {
   static const double CANVAS_SIZE = 400.0;
@@ -25,9 +26,50 @@ class RingsData {
     return innerRadius;
   }
 
-  static final List<Ring> rings = _initializeRings();
+  // Static rings list for backward compatibility during transition
+  static List<Ring> rings = _getFallbackRings();
+  
+  // Method to fetch rings from API
+  static Future<List<Ring>> fetchRings() async {
+    try {
+      final fetchedRings = await ApiService.fetchRings();
+      
+      // Update the inner radius based on the count of rings
+      final processedRings = _updateRingRadii(fetchedRings);
+      
+      // Update the static rings list
+      rings = processedRings;
+      
+      return processedRings;
+    } catch (e) {
+      print('Error fetching rings from API: $e');
+      // Fall back to hard-coded data
+      return _getFallbackRings();
+    }
+  }
+  
+  // Update inner radii of rings based on their count
+  static List<Ring> _updateRingRadii(List<Ring> fetchedRings) {
+    final int totalRings = fetchedRings.length;
+    
+    return fetchedRings.map((ring) {
+      return Ring(
+        index: ring.index,
+        name: ring.name,
+        innerRadius: _calculateInnerRadius(ring.index, totalRings),
+        thickness: DEFAULT_THICKNESS,
+        numberOfTicks: ring.numberOfTicks,
+        baseColor: ring.baseColor,
+        eras: ring.eras,
+        useImages: ring.useImages,
+        imageAssets: ring.imageAssets,
+        events: ring.events,
+      );
+    }).toList();
+  }
 
-  static List<Ring> _initializeRings() {
+  // Fallback data for when the API is unavailable
+  static List<Ring> _getFallbackRings() {
     final ringConfigs = [
       _RingConfig('Menstrual Cycle', 28, Colors.pink, _menstrualEras()),
       _RingConfig('Moon Cycle', 29, Colors.blue, _moonEras()),
