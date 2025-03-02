@@ -1,16 +1,7 @@
-cd frontend 
-flutter run -d chrome
+Please see README.md for comprehensive instructions on setting up and running the Wheel of Year Calendar application.
 
-backend
+Quick Start:
+- For macOS/Linux: ./run.sh
+- For Windows: run.bat
 
-cd /Users/reid/woy
-source venv/bin/activate
-python manage.py runserver
-
-python manage.py load_rings_data
-python manage.py createsuperuser
-
-
-
-
-
+These scripts will start both the backend and frontend servers. 
