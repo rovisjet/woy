@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import 'package:flutter_svg/flutter_svg.dart';
 import '../models/ring_model.dart';
 
 class RingWidget extends StatefulWidget {
@@ -28,6 +29,7 @@ class _RingWidgetState extends State<RingWidget> with SingleTickerProviderStateM
   late AnimationController _controller;
   late Animation<double> _rotationAnimation;
   double _currentRotation = 0;
+  List<ImageProvider?> _loadedImages = [];
 
   @override
   void initState() {
@@ -43,17 +45,29 @@ class _RingWidgetState extends State<RingWidget> with SingleTickerProviderStateM
       parent: _controller,
       curve: Curves.easeInOut,
     ));
+    
+    _loadImages();
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  void _loadImages() {
+    if (widget.ring.useImages) {
+      _loadedImages = List.generate(
+        widget.ring.imageAssets.length, 
+        (index) => AssetImage(widget.ring.imageAssets[index])
+      );
+    }
   }
 
   @override
   void didUpdateWidget(RingWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
+    
+    // Update loaded images if the ring or imageAssets changed
+    if (oldWidget.ring != widget.ring || 
+        oldWidget.ring.imageAssets != widget.ring.imageAssets) {
+      _loadImages();
+    }
+    
     if (oldWidget.dayRotation != widget.dayRotation) {
       final newRotation = (widget.dayRotation * 2 * math.pi) / widget.ring.numberOfTicks;
       
@@ -80,22 +94,134 @@ class _RingWidgetState extends State<RingWidget> with SingleTickerProviderStateM
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _rotationAnimation,
-      builder: (context, child) {
-        return Transform.rotate(
-          angle: _rotationAnimation.value,
-          child: CustomPaint(
-            size: const Size(400, 400),
-            painter: RingPainter(
+    if (widget.ring.useImages) {
+      return AnimatedBuilder(
+        animation: _rotationAnimation,
+        builder: (context, child) {
+          return Transform.rotate(
+            angle: _rotationAnimation.value,
+            child: ImageRing(
               ring: widget.ring,
               isSelected: widget.isSelected,
-              showLabels: widget.showLabels,
+              imageAssets: widget.ring.imageAssets,
+            ),
+          );
+        },
+      );
+    } else {
+      return AnimatedBuilder(
+        animation: _rotationAnimation,
+        builder: (context, child) {
+          return Transform.rotate(
+            angle: _rotationAnimation.value,
+            child: CustomPaint(
+              size: const Size(400, 400),
+              painter: RingPainter(
+                ring: widget.ring,
+                isSelected: widget.isSelected,
+                showLabels: widget.showLabels,
+              ),
+            ),
+          );
+        },
+      );
+    }
+  }
+}
+
+class ImageRing extends StatelessWidget {
+  final Ring ring;
+  final bool isSelected;
+  final List<String> imageAssets;
+
+  const ImageRing({
+    Key? key,
+    required this.ring,
+    required this.isSelected,
+    required this.imageAssets,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 400,
+      height: 400,
+      child: Stack(
+        children: [
+          // Draw a base circle to represent the ring
+          Center(
+            child: Container(
+              width: ring.innerRadius * 2 + ring.thickness * 2,
+              height: ring.innerRadius * 2 + ring.thickness * 2,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: ring.baseColor.withOpacity(0.1), 
+                  width: ring.thickness,
+                ),
+              ),
             ),
           ),
-        );
-      },
+          // Position the images around the ring
+          ...List.generate(imageAssets.length, (index) {
+            final double totalAngle = 2 * math.pi;
+            final double anglePerImage = totalAngle / imageAssets.length;
+            final double angle = index * anglePerImage - math.pi / 2; // Start from top
+            final double radius = ring.innerRadius + (ring.thickness / 2);
+            final double imageSize = ring.thickness * 1.5;
+            
+            // Calculate position
+            final double x = 200 + radius * math.cos(angle) - (imageSize / 2);
+            final double y = 200 + radius * math.sin(angle) - (imageSize / 2);
+            
+            return Positioned(
+              left: x,
+              top: y,
+              width: imageSize,
+              height: imageSize,
+              child: _buildImageWidget(imageAssets[index], imageSize),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildImageWidget(String assetPath, double size) {
+    if (assetPath.toLowerCase().endsWith('.svg')) {
+      return SvgPicture.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        placeholderBuilder: (context) => _buildPlaceholder(size),
+      );
+    } else {
+      return Image.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(size),
+      );
+    }
+  }
+  
+  Widget _buildPlaceholder(double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: isSelected ? Colors.grey.shade300 : Colors.grey.shade200,
+        shape: BoxShape.circle,
+      ),
     );
   }
 }
@@ -192,7 +318,37 @@ class RingPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
+    _drawColorBasedRing(canvas, size, center);
     
+    // Draw tick marks
+    final tickPaint = Paint()
+      ..color = isSelected 
+          ? ring.baseColor.withOpacity(0.9) 
+          : ring.baseColor.withOpacity(0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = isSelected ? 1.5 : 0.8;
+    
+    final tickLength = isSelected ? 6.0 : 4.0;
+    
+    // Draw fewer ticks for better performance
+    final tickInterval = math.max(1, (ring.numberOfTicks / 60).ceil());
+    
+    for (int i = 0; i < ring.numberOfTicks; i += tickInterval) {
+      final angle = (2 * math.pi * i) / ring.numberOfTicks;
+      final outerPoint = Offset(
+        center.dx + (ring.innerRadius + ring.thickness) * math.cos(angle),
+        center.dy + (ring.innerRadius + ring.thickness) * math.sin(angle)
+      );
+      final innerPoint = Offset(
+        center.dx + (ring.innerRadius + ring.thickness - tickLength) * math.cos(angle),
+        center.dy + (ring.innerRadius + ring.thickness - tickLength) * math.sin(angle)
+      );
+      
+      canvas.drawLine(innerPoint, outerPoint, tickPaint);
+    }
+  }
+
+  void _drawColorBasedRing(Canvas canvas, Size size, Offset center) {
     // Draw eras
     for (var era in ring.eras) {
       try {
@@ -239,33 +395,6 @@ class RingPainter extends CustomPainter {
         // Skip this era if there's an error
         continue;
       }
-    }
-    
-    // Draw tick marks
-    final tickPaint = Paint()
-      ..color = isSelected 
-          ? ring.baseColor.withOpacity(0.9) 
-          : ring.baseColor.withOpacity(0.5)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = isSelected ? 1.5 : 0.8;
-    
-    final tickLength = isSelected ? 6.0 : 4.0;
-    
-    // Draw fewer ticks for better performance
-    final tickInterval = math.max(1, (ring.numberOfTicks / 60).ceil());
-    
-    for (int i = 0; i < ring.numberOfTicks; i += tickInterval) {
-      final angle = (2 * math.pi * i) / ring.numberOfTicks;
-      final outerPoint = Offset(
-        center.dx + (ring.innerRadius + ring.thickness) * math.cos(angle),
-        center.dy + (ring.innerRadius + ring.thickness) * math.sin(angle)
-      );
-      final innerPoint = Offset(
-        center.dx + (ring.innerRadius + ring.thickness - tickLength) * math.cos(angle),
-        center.dy + (ring.innerRadius + ring.thickness - tickLength) * math.sin(angle)
-      );
-      
-      canvas.drawLine(innerPoint, outerPoint, tickPaint);
     }
   }
 

@@ -10,6 +10,8 @@ class Ring {
   final Color baseColor;
   final List<Era> eras;
   final List<dynamic> events;
+  final bool useImages;
+  final List<String> imageAssets;
 
   const Ring({
     required this.index,
@@ -20,5 +22,7 @@ class Ring {
     required this.baseColor,
     this.eras = const [],
     this.events = const [],
+    this.useImages = false,
+    this.imageAssets = const [],
   });
 } 

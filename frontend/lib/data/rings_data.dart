@@ -31,6 +31,7 @@ class RingsData {
     final ringConfigs = [
       _RingConfig('Menstrual Cycle', 28, Colors.pink, _menstrualEras()),
       _RingConfig('Moon Cycle', 29, Colors.blue, _moonEras()),
+      _ImageRingConfig('Moon Phases', 8, Colors.blue, _moonPhaseImages()),
       _RingConfig('Year', 365, Colors.green, _yearEras()),
       _RingConfig('Chinese Elements', 60, Colors.brown, _elementEras()),
       _RingConfig('Planetary Houses', 12, Colors.deepPurple, _houseEras()),
@@ -41,17 +42,57 @@ class RingsData {
 
     return List.generate(ringConfigs.length, (index) {
       final config = ringConfigs[index];
-      return Ring(
-        index: index,
-        name: config.name,
-        innerRadius: _calculateInnerRadius(index, ringConfigs.length),
-        thickness: DEFAULT_THICKNESS,
-        numberOfTicks: config.ticks,
-        baseColor: config.color,
-        eras: config.eras,
-      );
+      
+      // Handle both types of ring configurations
+      String name = '';
+      int ticks = 0;
+      Color color = Colors.grey;
+      
+      if (config is _ImageRingConfig) {
+        name = config.name;
+        ticks = config.ticks;
+        color = config.color;
+        
+        return Ring(
+          index: index,
+          name: name,
+          innerRadius: _calculateInnerRadius(index, ringConfigs.length),
+          thickness: DEFAULT_THICKNESS,
+          numberOfTicks: ticks,
+          baseColor: color,
+          useImages: true,
+          imageAssets: config.images,
+        );
+      } else if (config is _RingConfig) {
+        name = config.name;
+        ticks = config.ticks;
+        color = config.color;
+        
+        return Ring(
+          index: index,
+          name: name,
+          innerRadius: _calculateInnerRadius(index, ringConfigs.length),
+          thickness: DEFAULT_THICKNESS,
+          numberOfTicks: ticks,
+          baseColor: color,
+          eras: config.eras,
+        );
+      } else {
+        throw Exception('Unsupported ring configuration type');
+      }
     });
   }
+
+  static List<String> _moonPhaseImages() => [
+    'assets/images/moon/new_moon.svg',
+    'assets/images/moon/waxing_crescent.svg',
+    'assets/images/moon/first_quarter.svg',
+    'assets/images/moon/waxing_gibbous.svg',
+    'assets/images/moon/full_moon.svg',
+    'assets/images/moon/waning_gibbous.svg',
+    'assets/images/moon/last_quarter.svg',
+    'assets/images/moon/waning_crescent.svg',
+  ];
 
   static List<Era> _menstrualEras() => [
     Era(
@@ -407,4 +448,13 @@ class _RingConfig {
   final List<Era> eras;
 
   _RingConfig(this.name, this.ticks, this.color, this.eras);
+}
+
+class _ImageRingConfig {
+  final String name;
+  final int ticks;
+  final Color color;
+  final List<String> images;
+
+  _ImageRingConfig(this.name, this.ticks, this.color, this.images);
 } 
