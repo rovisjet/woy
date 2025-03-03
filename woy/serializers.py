@@ -1,6 +1,6 @@
 # serializers.py
 from rest_framework import serializers
-from .models import Ring, RingEra, RingImage
+from .models import Ring, RingEra, RingImage, UserRingPreference
 
 class RingEraSerializer(serializers.ModelSerializer):
     # Add fields for formatted values
@@ -61,3 +61,14 @@ class RingSerializer(serializers.ModelSerializer):
     def get_imageAssets(self, obj):
         image_paths = obj.images.all().order_by('order').values_list('image_path', flat=True)
         return list(image_paths)
+
+class UserRingPreferenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserRingPreference
+        fields = ['id', 'user', 'ring', 'display_order']
+
+class UserRingUpdateSerializer(serializers.Serializer):
+    ring_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=True
+    )

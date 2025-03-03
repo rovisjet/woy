@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'era_model.dart';
 
 class Ring {
+  final int? id;  // Database ID from the backend
   final int index;
   final String name;
   final double innerRadius;
@@ -14,6 +15,7 @@ class Ring {
   final List<String> imageAssets;
 
   const Ring({
+    this.id,
     required this.index,
     required this.name,
     required this.innerRadius,

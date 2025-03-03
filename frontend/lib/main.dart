@@ -7,6 +7,8 @@ import 'package:intl/intl.dart';
 import 'screens/ring_list_view.dart';
 import 'data/rings_data.dart';
 import 'dart:math' as math;
+import 'widgets/ring_management_modal.dart';
+import 'services/api_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -41,6 +43,9 @@ class DayEvent {
   });
 }
 
+// Create a global key for WheelCalendar
+final GlobalKey<WheelCalendarState> wheelCalendarKey = GlobalKey<WheelCalendarState>();
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -50,7 +55,39 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        title: FutureBuilder<User?>(
+          future: ApiService.fetchCurrentUser(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox.shrink();
+            }
+            
+            if (snapshot.hasData && snapshot.data != null) {
+              return Text(
+                'Hello, ${snapshot.data!.username}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.normal,
+                ),
+              );
+            } 
+            
+            return const SizedBox.shrink();
+          },
+        ),
         actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.edit,
+              color: Colors.white,
+              size: 24,
+            ),
+            onPressed: () {
+              _showRingManagementModal(context);
+            },
+          ),
+          const SizedBox(width: 8),
           IconButton(
             icon: const Icon(
               Icons.arrow_forward,
@@ -67,10 +104,62 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(width: 8),
         ],
       ),
-      body: const Center(
-        child: WheelCalendar(),
+      body: Center(
+        child: WheelCalendar(key: wheelCalendarKey),
       ),
     );
+  }
+
+  Future<void> _showRingManagementModal(BuildContext context) async {
+    final wheelCalendarState = wheelCalendarKey.currentState;
+    
+    if (wheelCalendarState != null) {
+      try {
+        // Show loading indicator
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Loading rings...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+        
+        // Fetch public rings
+        final publicRings = await ApiService.fetchPublicRings();
+        
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return RingManagementModal(
+                userRings: wheelCalendarState.rings,
+                publicRings: publicRings,
+                onRingsUpdated: (updatedRings) {
+                  // Update the rings in the WheelCalendar
+                  wheelCalendarState.updateRings(updatedRings);
+                },
+              );
+            },
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to load rings: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } else {
+      // If we can't find the state, show an error
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not access wheel calendar state'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }
 
@@ -78,10 +167,10 @@ class WheelCalendar extends StatefulWidget {
   const WheelCalendar({Key? key}) : super(key: key);
 
   @override
-  State<WheelCalendar> createState() => _WheelCalendarState();
+  WheelCalendarState createState() => WheelCalendarState();
 }
 
-class _WheelCalendarState extends State<WheelCalendar> {
+class WheelCalendarState extends State<WheelCalendar> {
   late List<Ring> rings;
   int? selectedRingIndex;
   double currentDay = 0;
@@ -102,16 +191,128 @@ class _WheelCalendarState extends State<WheelCalendar> {
     _fetchRingsFromApi();
   }
 
+  // This method will be called from the HomeScreen when rings are updated
+  void updateRings(List<Ring> updatedRings) {
+    // Create a copy of updatedRings with updated indices
+    final List<Ring> reindexedRings = [];
+    
+    // Create new ring objects with updated indices based on their order
+    for (int i = 0; i < updatedRings.length; i++) {
+      final ring = updatedRings[i];
+      // Create a new Ring with updated index
+      reindexedRings.add(Ring(
+        id: ring.id,
+        index: i, // Use position in the list as the index
+        name: ring.name,
+        innerRadius: 0, // Will be calculated later
+        thickness: ring.thickness,
+        numberOfTicks: ring.numberOfTicks,
+        baseColor: ring.baseColor,
+        eras: ring.eras,
+        events: ring.events,
+        useImages: ring.useImages,
+        imageAssets: ring.imageAssets,
+      ));
+    }
+    
+    // Update inner radii based on new indices and count
+    final recalculatedRings = _recalculateRingRadii(reindexedRings);
+    
+    // Update ringDays array size if needed
+    if (recalculatedRings.length > ringDays.length) {
+      ringDays = List.generate(recalculatedRings.length, (index) => currentDay);
+    }
+    
+    setState(() {
+      rings = recalculatedRings;
+      
+      // Reset selected ring if it's no longer available
+      if (selectedRingIndex != null && 
+          !recalculatedRings.any((ring) => ring.index == selectedRingIndex)) {
+        selectedRingIndex = null;
+      }
+    });
+  }
+  
+  // Helper method to recalculate ring radii based on count and order
+  List<Ring> _recalculateRingRadii(List<Ring> rings) {
+    const double CANVAS_SIZE = 400.0;
+    const double CENTER_CIRCLE_RADIUS = 50.0;
+    const double DEFAULT_THICKNESS = 20.0;
+    const double RING_SPACING = 10.0;
+    
+    // Available space is from center circle to edge of canvas
+    double availableSpace = (CANVAS_SIZE / 2) - CENTER_CIRCLE_RADIUS;
+    
+    // Total space needed for all rings and gaps
+    double totalRingSpace = (rings.length * DEFAULT_THICKNESS) + 
+                           ((rings.length - 1) * RING_SPACING);
+                           
+    // Scale factor to fit everything
+    double scaleFactor = availableSpace / totalRingSpace;
+    
+    List<Ring> result = [];
+    
+    // Calculate inner radius for each ring
+    for (int i = 0; i < rings.length; i++) {
+      final ring = rings[i];
+      
+      // Calculate inner radius with spacing
+      double innerRadius = CENTER_CIRCLE_RADIUS;
+      for (int j = 0; j < i; j++) {
+        innerRadius += (DEFAULT_THICKNESS * scaleFactor) + (RING_SPACING * scaleFactor);
+      }
+      
+      // Create a new ring with the calculated inner radius
+      result.add(Ring(
+        id: ring.id,
+        index: ring.index,
+        name: ring.name,
+        innerRadius: innerRadius,
+        thickness: DEFAULT_THICKNESS * scaleFactor,
+        numberOfTicks: ring.numberOfTicks,
+        baseColor: ring.baseColor,
+        eras: ring.eras,
+        events: ring.events,
+        useImages: ring.useImages,
+        imageAssets: ring.imageAssets,
+      ));
+    }
+    
+    return result;
+  }
+
   Future<void> _fetchRingsFromApi() async {
     try {
       setState(() {
         isLoading = true;
       });
       
+      // Try to fetch user's rings first
+      try {
+        final userRings = await ApiService.fetchUserRings();
+        if (userRings.isNotEmpty) {
+          // Ensure the rings have proper indices and spacing
+          final processedRings = _recalculateRingRadii(userRings);
+          
+          setState(() {
+            rings = processedRings;
+            isLoading = false;
+          });
+          return;
+        }
+      } catch (e) {
+        print('Error fetching user rings, falling back to all rings: $e');
+      }
+      
+      // If user has no rings or an error occurred, fall back to all rings
       final fetchedRings = await RingsData.fetchRings();
       
+      // Ensure the rings have proper indices and spacing
+      final processedRings = _recalculateRingRadii(fetchedRings);
+      
       setState(() {
-        rings = fetchedRings;
+        rings = processedRings;
         isLoading = false;
       });
     } catch (e) {
@@ -416,10 +617,13 @@ class _WheelCalendarState extends State<WheelCalendar> {
               final distance = (details.localPosition - center).distance;
               
               // Check rings from outer to inner
-              for (var ring in rings.reversed) {
+              for (var i = rings.length - 1; i >= 0; i--) {
+                final ring = rings[i];
                 if (distance >= ring.innerRadius && 
                     distance <= (ring.innerRadius + ring.thickness)) {
-                  _onRingTap(ring.index);
+                  setState(() {
+                    selectedRingIndex = ring.index;
+                  });
                   break;
                 }
               }
@@ -431,7 +635,7 @@ class _WheelCalendarState extends State<WheelCalendar> {
                   ring: ring,
                   isSelected: selectedRingIndex == ring.index,
                   onTap: () {}, // Empty callback since we handle taps above
-                  dayRotation: ringDays[ring.index],
+                  dayRotation: ringDays[ring.index < ringDays.length ? ring.index : 0],
                   animationEnabled: !isSliding || selectedRingIndex == ring.index,
                   showLabels: showLabels,
                 )).toList().reversed,

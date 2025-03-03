@@ -16,12 +16,14 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import RingViewSet, RingEraViewSet, RingImageViewSet
+from .views import RingViewSet, RingEraViewSet, RingImageViewSet, UserRingViewSet, UserViewSet
 
 router = DefaultRouter()
 router.register(r'rings', RingViewSet)
 router.register(r'ring-eras', RingEraViewSet)
 router.register(r'ring-images', RingImageViewSet)
+router.register(r'user/rings', UserRingViewSet, basename='user-rings')
+router.register(r'user', UserViewSet, basename='user')
 
 urlpatterns = [
     path('api/', include(router.urls)),
