@@ -46,8 +46,39 @@ class DayEvent {
 // Create a global key for WheelCalendar
 final GlobalKey<WheelCalendarState> wheelCalendarKey = GlobalKey<WheelCalendarState>();
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
+
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  bool _showingLabels = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Need to wait for the next frame when wheelCalendarKey will be available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final state = wheelCalendarKey.currentState;
+      if (state != null && mounted) {
+        // Set initial state
+        setState(() {
+          _showingLabels = state.areLabelsVisible;
+        });
+        
+        // Register callback for future changes
+        state.setOnLabelsChangedCallback((isVisible) {
+          if (mounted) {
+            setState(() {
+              _showingLabels = isVisible;
+            });
+          }
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +108,23 @@ class HomeScreen extends StatelessWidget {
           },
         ),
         actions: [
+          IconButton(
+            icon: Icon(
+              Icons.local_offer, // Shopping tag icon
+              color: _showingLabels ? Colors.white : Colors.grey[600],
+              size: 24,
+            ),
+            tooltip: 'Toggle Labels',
+            onPressed: () {
+              final state = wheelCalendarKey.currentState;
+              if (state != null) {
+                state.toggleLabels();
+                setState(() {
+                  _showingLabels = state.areLabelsVisible;
+                });
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(
               Icons.edit,
@@ -191,6 +239,9 @@ class WheelCalendarState extends State<WheelCalendar> {
   bool showLabels = false;
   bool isLoading = true;
   
+  // Callback for when labels visibility changes
+  Function(bool)? _onLabelsChanged;
+  
   final DateFormat dateFormat = DateFormat('EEEE, MMMM d, yyyy');
   final easternTimeZone = DateTime.now().toUtc().subtract(const Duration(hours: 5));
 
@@ -203,6 +254,11 @@ class WheelCalendarState extends State<WheelCalendar> {
     _fetchRingsFromApi();
   }
 
+  // Set a callback to notify when labels change
+  void setOnLabelsChangedCallback(Function(bool) callback) {
+    _onLabelsChanged = callback;
+  }
+
   // Reset the calendar to today (day 0)
   void resetToToday() {
     setState(() {
@@ -213,6 +269,21 @@ class WheelCalendarState extends State<WheelCalendar> {
       }
     });
   }
+  
+  // Toggle the labels visibility
+  void toggleLabels() {
+    setState(() {
+      showLabels = !showLabels;
+      
+      // Notify callback if set
+      if (_onLabelsChanged != null) {
+        _onLabelsChanged!(showLabels);
+      }
+    });
+  }
+  
+  // Get the current labels state
+  bool get areLabelsVisible => showLabels;
 
   // This method will be called from the HomeScreen when rings are updated
   void updateRings(List<Ring> updatedRings) {
@@ -650,31 +721,6 @@ class WheelCalendarState extends State<WheelCalendar> {
           )
         else
           const SizedBox(height: 30),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Checkbox(
-                value: showLabels,
-                onChanged: (value) {
-                  setState(() {
-                    showLabels = value ?? false;
-                  });
-                },
-                activeColor: _getSelectedRingColor(),
-                checkColor: Colors.white,
-              ),
-              const Text(
-                'Show Labels',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                ),
-              ),
-            ],
-          ),
-        ),
         SizedBox(
           width: 400,
           height: 400,
