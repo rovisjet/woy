@@ -115,6 +115,9 @@ class HomeScreen extends StatelessWidget {
     
     if (wheelCalendarState != null) {
       try {
+        // Reset the current day to today (0) whenever opening the editor
+        wheelCalendarState.resetToToday();
+        
         // Show loading indicator
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -136,6 +139,15 @@ class HomeScreen extends StatelessWidget {
                 onRingsUpdated: (updatedRings) {
                   // Update the rings in the WheelCalendar
                   wheelCalendarState.updateRings(updatedRings);
+                  
+                  // Show success message
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Rings updated successfully!'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
                 },
               );
             },
@@ -191,6 +203,17 @@ class WheelCalendarState extends State<WheelCalendar> {
     _fetchRingsFromApi();
   }
 
+  // Reset the calendar to today (day 0)
+  void resetToToday() {
+    setState(() {
+      currentDay = 0;
+      // Reset all ring days to 0
+      for (int i = 0; i < ringDays.length; i++) {
+        ringDays[i] = 0;
+      }
+    });
+  }
+
   // This method will be called from the HomeScreen when rings are updated
   void updateRings(List<Ring> updatedRings) {
     // Create a copy of updatedRings with updated indices
@@ -227,9 +250,9 @@ class WheelCalendarState extends State<WheelCalendar> {
       rings = recalculatedRings;
       
       // Reset selected ring if it's no longer available
-      if (selectedRingIndex != null && 
-          !recalculatedRings.any((ring) => ring.index == selectedRingIndex)) {
+      if (selectedRingIndex != null && (selectedRingIndex! >= recalculatedRings.length || recalculatedRings.isEmpty)) {
         selectedRingIndex = null;
+        currentDay = 0; // Reset current day when no ring is selected
       }
     });
   }
@@ -459,16 +482,32 @@ class WheelCalendarState extends State<WheelCalendar> {
   }
 
   void _onSliderChanged(double value) {
+    if (selectedRingIndex == null || selectedRingIndex! >= rings.length || rings.isEmpty) {
+      return; // Safety check
+    }
+    
     setState(() {
       isSliding = true;
       // Ensure value is within bounds
       final maxDays = rings[selectedRingIndex!].numberOfTicks.toDouble();
       currentDay = value.clamp(0, maxDays);
-      ringDays[selectedRingIndex!] = currentDay;
+      
+      // Use the position (selectedRingIndex) to update ringDays
+      if (selectedRingIndex! < ringDays.length) {
+        ringDays[selectedRingIndex!] = currentDay;
+      } else {
+        // If ringDays array is too small, resize it
+        ringDays = List.generate(selectedRingIndex! + 1, (i) => 
+          i < ringDays.length ? ringDays[i] : currentDay);
+      }
     });
   }
 
   void _onSliderChangeEnd(double value) {
+    if (selectedRingIndex == null || selectedRingIndex! >= rings.length || rings.isEmpty) {
+      return; // Safety check
+    }
+    
     setState(() {
       isSliding = false;
       // Ensure value is within bounds
@@ -481,12 +520,17 @@ class WheelCalendarState extends State<WheelCalendar> {
   }
 
   Color _getSelectedRingColor() {
-    if (selectedRingIndex == null) return Colors.grey;
+    if (selectedRingIndex == null || selectedRingIndex! >= rings.length) {
+      return Colors.grey;
+    }
     return rings[selectedRingIndex!].baseColor;
   }
 
   double _getSliderMax() {
-    return selectedRingIndex == null ? 0 : rings[selectedRingIndex!].numberOfTicks.toDouble();
+    if (selectedRingIndex == null || selectedRingIndex! >= rings.length || rings.isEmpty) {
+      return 1; // Return a minimum of 1 to avoid assertion error
+    }
+    return rings[selectedRingIndex!].numberOfTicks.toDouble();
   }
 
   int _calculateDivisionsForRing(int numberOfTicks) {
@@ -536,6 +580,30 @@ class WheelCalendarState extends State<WheelCalendar> {
           ],
         ),
       );
+    }
+    
+    // Ensure currentDay is valid for the selected ring
+    if (selectedRingIndex != null && selectedRingIndex! < rings.length) {
+      final maxDays = rings[selectedRingIndex!].numberOfTicks.toDouble();
+      if (currentDay > maxDays) {
+        // Schedule this for the next frame to avoid setState during build
+        Future.microtask(() {
+          setState(() {
+            currentDay = maxDays;
+            for (int i = 0; i < ringDays.length; i++) {
+              ringDays[i] = currentDay;
+            }
+          });
+        });
+      }
+    }
+    
+    // Calculate the actual value to use for the slider
+    double sliderValue = currentDay;
+    double sliderMax = _getSliderMax();
+    
+    if (sliderValue > sliderMax) {
+      sliderValue = sliderMax;
     }
     
     return Column(
@@ -622,7 +690,9 @@ class WheelCalendarState extends State<WheelCalendar> {
                 if (distance >= ring.innerRadius && 
                     distance <= (ring.innerRadius + ring.thickness)) {
                   setState(() {
-                    selectedRingIndex = ring.index;
+                    // Store the POSITION in the rings array, not the ring.index property
+                    selectedRingIndex = i;
+                    print('Selected ring: position=$i, id=${ring.id}, index=${ring.index}, name=${ring.name}');
                   });
                   break;
                 }
@@ -631,14 +701,18 @@ class WheelCalendarState extends State<WheelCalendar> {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                ...rings.map((ring) => RingWidget(
-                  ring: ring,
-                  isSelected: selectedRingIndex == ring.index,
-                  onTap: () {}, // Empty callback since we handle taps above
-                  dayRotation: ringDays[ring.index < ringDays.length ? ring.index : 0],
-                  animationEnabled: !isSliding || selectedRingIndex == ring.index,
-                  showLabels: showLabels,
-                )).toList().reversed,
+                ...rings.map((ring) {
+                  // Find ring's position in the array
+                  final ringPosition = rings.indexOf(ring);
+                  return RingWidget(
+                    ring: ring,
+                    isSelected: selectedRingIndex == ringPosition,
+                    onTap: () {}, // Empty callback since we handle taps above
+                    dayRotation: ringDays.length > ringPosition ? ringDays[ringPosition] : 0.0,
+                    animationEnabled: !isSliding || selectedRingIndex == ringPosition,
+                    showLabels: showLabels,
+                  );
+                }).toList().reversed,
                 CentralCircle(radius: 50, onTap: _showDailySnapshot),
               ],
             ),
@@ -659,10 +733,14 @@ class WheelCalendarState extends State<WheelCalendar> {
                       Icons.chevron_left,
                       color: _getSelectedRingColor(),
                     ),
-                    onPressed: selectedRingIndex != null ? () {
+                    onPressed: selectedRingIndex != null && selectedRingIndex! < rings.length ? () {
                       if (currentDay > 0) {
                         setState(() {
                           currentDay = currentDay - 1;
+                          // Make sure we have enough elements in ringDays
+                          while (ringDays.length <= selectedRingIndex!) {
+                            ringDays.add(0.0);
+                          }
                           ringDays[selectedRingIndex!] = currentDay;
                           for (int i = 0; i < ringDays.length; i++) {
                             ringDays[i] = currentDay;
@@ -678,24 +756,18 @@ class WheelCalendarState extends State<WheelCalendar> {
                         activeTrackColor: _getSelectedRingColor(),
                         thumbColor: _getSelectedRingColor(),
                         overlayColor: _getSelectedRingColor().withOpacity(0.3),
-                        valueIndicatorColor: _getSelectedRingColor(),
-                        tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 3),
-                        activeTickMarkColor: _getSelectedRingColor().withOpacity(0.9),
-                        inactiveTickMarkColor: _getSelectedRingColor().withOpacity(0.6),
-                        showValueIndicator: ShowValueIndicator.always,
-                        trackHeight: 2.5,
+                        inactiveTrackColor: Colors.grey[800],
                       ),
                       child: Slider(
-                        value: currentDay,
+                        value: sliderValue,
                         min: 0,
-                        max: _getSliderMax(),
-                        // Calculate appropriate number of divisions based on available width
-                        divisions: selectedRingIndex != null 
-                          ? _calculateDivisionsForRing(rings[selectedRingIndex!].numberOfTicks) 
-                          : 1,
-                        label: _getSliderLabel(currentDay),
-                        onChanged: selectedRingIndex != null ? _onSliderChanged : null,
-                        onChangeEnd: selectedRingIndex != null ? _onSliderChangeEnd : null,
+                        max: sliderMax,
+                        divisions: selectedRingIndex != null && selectedRingIndex! < rings.length ? 
+                            _calculateDivisionsForRing(rings[selectedRingIndex!].numberOfTicks) : 1,
+                        onChanged: selectedRingIndex != null && selectedRingIndex! < rings.length ? 
+                            _onSliderChanged : null,
+                        onChangeEnd: selectedRingIndex != null && selectedRingIndex! < rings.length ? 
+                            _onSliderChangeEnd : null,
                       ),
                     ),
                   ),
@@ -705,11 +777,15 @@ class WheelCalendarState extends State<WheelCalendar> {
                       Icons.chevron_right,
                       color: _getSelectedRingColor(),
                     ),
-                    onPressed: selectedRingIndex != null ? () {
+                    onPressed: selectedRingIndex != null && selectedRingIndex! < rings.length ? () {
                       final maxDays = rings[selectedRingIndex!].numberOfTicks.toDouble();
-                      if (currentDay < maxDays - 1) {
+                      if (currentDay < maxDays) {
                         setState(() {
                           currentDay = currentDay + 1;
+                          // Make sure we have enough elements in ringDays
+                          while (ringDays.length <= selectedRingIndex!) {
+                            ringDays.add(0.0);
+                          }
                           ringDays[selectedRingIndex!] = currentDay;
                           for (int i = 0; i < ringDays.length; i++) {
                             ringDays[i] = currentDay;

@@ -32,20 +32,30 @@ class RingsData {
   // Method to fetch rings from API
   static Future<List<Ring>> fetchRings() async {
     try {
-      final fetchedRings = await ApiService.fetchRings();
+      // Try to fetch user's rings first
+      try {
+        final userRings = await ApiService.fetchUserRings();
+        if (userRings.isNotEmpty) {
+          print('Using user rings: ${userRings.map((r) => 'id=${r.id}, index=${r.index}, name=${r.name}')}');
+          return userRings;
+        }
+      } catch (e) {
+        print('Error fetching user rings, falling back to all rings: $e');
+      }
       
-      // Update the inner radius based on the count of rings
-      final processedRings = _updateRingRadii(fetchedRings);
-      
-      // Update the static rings list
-      rings = processedRings;
-      
-      return processedRings;
+      // If user has no rings or an error occurred, try all rings
+      final allRings = await ApiService.fetchRings();
+      if (allRings.isNotEmpty) {
+        print('Using all rings: ${allRings.map((r) => 'id=${r.id}, index=${r.index}, name=${r.name}')}');
+        return allRings;
+      }
     } catch (e) {
       print('Error fetching rings from API: $e');
-      // Fall back to hard-coded data
-      return _getFallbackRings();
     }
+    
+    // If all API calls fail, return fallback data
+    print('Using fallback rings data');
+    return rings;
   }
   
   // Update inner radii of rings based on their count
