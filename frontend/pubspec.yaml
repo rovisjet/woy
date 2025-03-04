@@ -67,6 +67,7 @@ flutter:
   assets:
     - assets/images/moon/
     - assets/images/symbols/
+    - assets/images/backgrounds/
     # Moon phase SVG files
     - assets/images/moon/new_moon.svg
     - assets/images/moon/waxing_crescent.svg
@@ -78,6 +79,8 @@ flutter:
     - assets/images/moon/waning_crescent.svg
     # Symbol SVG files
     - assets/images/symbols/pentacle.svg
+    # Background images
+    - assets/images/backgrounds/forest_mist_bg.jpg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

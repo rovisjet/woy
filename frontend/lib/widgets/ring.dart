@@ -278,11 +278,27 @@ class RingPainter extends CustomPainter {
     if (arcLength < 60) fontSize = 10.0;
     if (arcLength < 40) fontSize = 8.0;
     
+    // Calculate percentage through the cycle for thematic coloring
+    final percentage = angle / (2 * math.pi);
+    
+    // Get the background color (era color)
+    final Color backgroundColor = _getThematicColor(ring.baseColor, percentage);
+    
+    // Calculate luminance to determine if the background is light or dark
+    // Using the perceived brightness formula (0.299*R + 0.587*G + 0.114*B)
+    final double luminance = (0.299 * backgroundColor.red + 
+                             0.587 * backgroundColor.green + 
+                             0.114 * backgroundColor.blue) / 255;
+    
+    // Choose text color based on background luminance
+    // If luminance > 0.5, background is light, so use dark text
+    final Color textColor = luminance > 0.5 ? Colors.black : Colors.white;
+    
     final textPainter = TextPainter(
       text: TextSpan(
         text: text,
         style: TextStyle(
-          color: Colors.white,
+          color: textColor,
           fontSize: fontSize,
           fontWeight: FontWeight.bold,
         ),
@@ -297,7 +313,7 @@ class RingPainter extends CustomPainter {
       textPainter.text = TextSpan(
         text: displayText,
         style: TextStyle(
-          color: Colors.white,
+          color: textColor,
           fontSize: fontSize,
           fontWeight: FontWeight.bold,
         ),

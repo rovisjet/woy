@@ -83,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true, // Allow body to extend behind the AppBar
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -152,8 +153,26 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: Center(
-        child: WheelCalendar(key: wheelCalendarKey),
+      // Replace the plain body with a container that has the background image
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/images/backgrounds/forest_mist_bg.jpg'),
+            fit: BoxFit.cover, // Cover the entire screen
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Semi-transparent overlay for better readability
+            Container(
+              color: Colors.black.withOpacity(0.4), // Adjust opacity as needed
+            ),
+            // Main content
+            Center(
+              child: WheelCalendar(key: wheelCalendarKey),
+            ),
+          ],
+        ),
       ),
     );
   }
