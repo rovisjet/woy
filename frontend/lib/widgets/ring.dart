@@ -237,38 +237,42 @@ class RingPainter extends CustomPainter {
     this.showLabels = false,
   });
 
-  // Generate a thematic color based on the base color and a percentage
-  Color _getThematicColor(Color baseColor, double percentage) {
+  // Generate a color based on position in the era sequence (0 = first era, 1 = last era)
+  Color _getThematicColor(Color baseColor, double position) {
     try {
-      // Create variations based on the base color
-      if (percentage < 0.25) {
-        // Lighter version
-        return HSLColor.fromColor(baseColor).withLightness(
-          (HSLColor.fromColor(baseColor).lightness + 0.2).clamp(0.0, 1.0)
-        ).toColor();
-      } else if (percentage < 0.5) {
-        // Slightly lighter
-        return HSLColor.fromColor(baseColor).withLightness(
-          (HSLColor.fromColor(baseColor).lightness + 0.1).clamp(0.0, 1.0)
-        ).toColor();
-      } else if (percentage < 0.75) {
-        // Slightly darker
-        return HSLColor.fromColor(baseColor).withLightness(
-          (HSLColor.fromColor(baseColor).lightness - 0.1).clamp(0.0, 1.0)
-        ).toColor();
-      } else {
-        // Darker version
-        return HSLColor.fromColor(baseColor).withLightness(
-          (HSLColor.fromColor(baseColor).lightness - 0.2).clamp(0.0, 1.0)
-        ).toColor();
-      }
+      // Ensure position is between 0 and 1
+      position = position.clamp(0.0, 1.0);
+      
+      // Calculate how gray/transparent to make the color
+      // - At position 0 (first era), color is fully vibrant
+      // - Moving through eras, colors become grayer and more transparent
+      // - At position 1 (last era), color is almost transparent
+      
+      // Avoid making it completely transparent at the very end to prevent glitches
+      final greyFactor = math.min(0.95, position);
+      
+      // Calculate opacity (from 1.0 for first era to 0.0 for last era)
+      final opacity = math.max(0.0, 1.0 - greyFactor);
+      
+      // Calculate color - blend between the base color and gray
+      final HSLColor baseHsl = HSLColor.fromColor(baseColor);
+      
+      // Blend toward grey as we progress through eras
+      final HSLColor blendedColor = HSLColor.fromAHSL(
+        opacity,
+        baseHsl.hue,
+        baseHsl.saturation * (1.0 - greyFactor), // Reduce saturation
+        baseHsl.lightness * (1.0 - greyFactor * 0.5) + 0.5 * greyFactor, // Lighten slightly as we desaturate
+      );
+      
+      return blendedColor.toColor();
     } catch (e) {
       // Fallback to base color if any error occurs
       return baseColor;
     }
   }
 
-  void _drawEraLabel(Canvas canvas, Offset center, String text, double angle, double radius, double sweepAngle) {
+  void _drawEraLabel(Canvas canvas, Offset center, String text, double angle, double radius, double sweepAngle, double eraPosition) {
     if (!showLabels) return;
     
     final arcLength = sweepAngle * radius;
@@ -278,11 +282,8 @@ class RingPainter extends CustomPainter {
     if (arcLength < 60) fontSize = 10.0;
     if (arcLength < 40) fontSize = 8.0;
     
-    // Calculate percentage through the cycle for thematic coloring
-    final percentage = angle / (2 * math.pi);
-    
-    // Get the background color (era color)
-    final Color backgroundColor = _getThematicColor(ring.baseColor, percentage);
+    // Get the background color (era color) based on position in sequence
+    final Color backgroundColor = _getThematicColor(ring.baseColor, eraPosition);
     
     // Calculate luminance to determine if the background is light or dark
     // Using the perceived brightness formula (0.299*R + 0.587*G + 0.114*B)
@@ -365,20 +366,28 @@ class RingPainter extends CustomPainter {
   }
 
   void _drawColorBasedRing(Canvas canvas, Size size, Offset center) {
-    // Draw eras
-    for (var era in ring.eras) {
+    // Sort eras by their start day to establish the sequence
+    final sortedEras = List<dynamic>.from(ring.eras)
+      ..sort((a, b) => a.startDay!.compareTo(b.startDay!));
+    
+    // Calculate total number of eras for position normalization
+    final totalEras = sortedEras.length;
+    
+    // Draw eras in their sorted order
+    for (int i = 0; i < sortedEras.length; i++) {
       try {
+        final era = sortedEras[i];
         final startAngle = (era.startDay * 2 * math.pi) / ring.numberOfTicks;
         final sweepAngle = ((era.endDay - era.startDay) * 2 * math.pi) / ring.numberOfTicks;
         
         // Ensure we have valid angles
         if (sweepAngle <= 0 || startAngle.isNaN || sweepAngle.isNaN) continue;
         
-        // Calculate percentage through the cycle for thematic coloring
-        final percentage = era.startDay / ring.numberOfTicks;
+        // Calculate normalized position in the sequence (0 = first, 1 = last)
+        final eraPosition = totalEras > 1 ? i / (totalEras - 1) : 0.0;
         
-        // Use thematic color based on the ring's base color
-        final Color eraColor = _getThematicColor(ring.baseColor, percentage);
+        // Use position-based theming for color
+        final eraColor = _getThematicColor(ring.baseColor, eraPosition);
         
         final eraPaint = Paint()
           ..color = eraColor
@@ -397,7 +406,7 @@ class RingPainter extends CustomPainter {
           eraPaint,
         );
 
-        // Draw era label
+        // Draw era label with appropriate contrast
         final middleAngle = startAngle + (sweepAngle / 2) - math.pi / 2;
         _drawEraLabel(
           canvas,
@@ -406,6 +415,7 @@ class RingPainter extends CustomPainter {
           middleAngle,
           ring.innerRadius + (ring.thickness / 2),
           sweepAngle,
+          eraPosition,
         );
       } catch (e) {
         // Skip this era if there's an error
