@@ -23,8 +23,12 @@ class MyApp extends StatelessWidget {
       title: 'Wheel Calendar',
       theme: ThemeData(
         primarySwatch: Colors.grey,
-        scaffoldBackgroundColor: Colors.grey[850],
+        scaffoldBackgroundColor: Colors.transparent, // Changed to transparent to allow our background image to show
         brightness: Brightness.dark,
+        appBarTheme: AppBarTheme(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
       ),
       home: const HomeScreen(),
     );
@@ -153,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      // Replace the plain body with a container that has the background image
+      // Container with background image
       body: Container(
         decoration: const BoxDecoration(
           image: DecorationImage(
@@ -251,12 +255,11 @@ class WheelCalendar extends StatefulWidget {
 
 class WheelCalendarState extends State<WheelCalendar> {
   late List<Ring> rings;
-  int? selectedRingIndex;
+  int? selectedRingIndex; // Keep this for backward compatibility but we won't use it
   double currentDay = 0;
   List<double> ringDays = List.generate(13, (index) => 0.0);
-  bool isSliding = false;
-  bool showLabels = false;
   bool isLoading = true;
+  bool showLabels = false;
   
   // Callback for when labels visibility changes
   Function(bool)? _onLabelsChanged;
@@ -338,12 +341,6 @@ class WheelCalendarState extends State<WheelCalendar> {
     
     setState(() {
       rings = recalculatedRings;
-      
-      // Reset selected ring if it's no longer available
-      if (selectedRingIndex != null && (selectedRingIndex! >= recalculatedRings.length || recalculatedRings.isEmpty)) {
-        selectedRingIndex = null;
-        currentDay = 0; // Reset current day when no ring is selected
-      }
     });
   }
   
@@ -548,109 +545,6 @@ class WheelCalendarState extends State<WheelCalendar> {
     return dateFormat.format(date);
   }
 
-  String _getSliderLabel(double value) {
-    if (value == 0) {
-      return 'Today';
-    }
-    final date = easternTimeZone.add(Duration(days: value.round()));
-    return DateFormat('MMM d, yyyy').format(date);
-  }
-
-  void _onRingTap(int index) {
-    setState(() {
-      if (selectedRingIndex != index) {
-        selectedRingIndex = index;
-        final maxDays = rings[selectedRingIndex!].numberOfTicks.toDouble();
-        if (currentDay > maxDays) {
-          currentDay = maxDays;
-          for (int i = 0; i < ringDays.length; i++) {
-            ringDays[i] = currentDay;
-          }
-        }
-      }
-    });
-  }
-
-  void _onSliderChanged(double value) {
-    if (selectedRingIndex == null || selectedRingIndex! >= rings.length || rings.isEmpty) {
-      return; // Safety check
-    }
-    
-    setState(() {
-      isSliding = true;
-      // Ensure value is within bounds
-      final maxDays = rings[selectedRingIndex!].numberOfTicks.toDouble();
-      currentDay = value.clamp(0, maxDays);
-      
-      // Use the position (selectedRingIndex) to update ringDays
-      if (selectedRingIndex! < ringDays.length) {
-        ringDays[selectedRingIndex!] = currentDay;
-      } else {
-        // If ringDays array is too small, resize it
-        ringDays = List.generate(selectedRingIndex! + 1, (i) => 
-          i < ringDays.length ? ringDays[i] : currentDay);
-      }
-    });
-  }
-
-  void _onSliderChangeEnd(double value) {
-    if (selectedRingIndex == null || selectedRingIndex! >= rings.length || rings.isEmpty) {
-      return; // Safety check
-    }
-    
-    setState(() {
-      isSliding = false;
-      // Ensure value is within bounds
-      final maxDays = rings[selectedRingIndex!].numberOfTicks.toDouble();
-      currentDay = value.clamp(0, maxDays);
-      for (int i = 0; i < ringDays.length; i++) {
-        ringDays[i] = currentDay;
-      }
-    });
-  }
-
-  Color _getSelectedRingColor() {
-    if (selectedRingIndex == null || selectedRingIndex! >= rings.length) {
-      return Colors.grey;
-    }
-    return rings[selectedRingIndex!].baseColor;
-  }
-
-  double _getSliderMax() {
-    if (selectedRingIndex == null || selectedRingIndex! >= rings.length || rings.isEmpty) {
-      return 1; // Return a minimum of 1 to avoid assertion error
-    }
-    return rings[selectedRingIndex!].numberOfTicks.toDouble();
-  }
-
-  int _calculateDivisionsForRing(int numberOfTicks) {
-    // Calculate appropriate divisions that make sense for the number of ticks
-    // The goal is to show logical intervals (e.g. 5, 10, 30 days) without overwhelming the UI
-    
-    // For very small cycles (< 30 days), show all days
-    if (numberOfTicks <= 30) {
-      return numberOfTicks - 1;
-    }
-    
-    // For medium cycles, show intervals that are easily counted
-    else if (numberOfTicks <= 60) {
-      return (numberOfTicks ~/ 2); // Show every 2 days
-    }
-    else if (numberOfTicks <= 120) {
-      return (numberOfTicks ~/ 5); // Show every 5 days
-    }
-    else if (numberOfTicks <= 180) {
-      return (numberOfTicks ~/ 10); // Show every 10 days
-    }
-    // For annual cycles, show monthly or bi-weekly intervals
-    else if (numberOfTicks <= 366) {
-      return (numberOfTicks ~/ 30); // ~12 divisions for a year
-    }
-    
-    // For very large cycles, limit to reasonable number of tick marks
-    return (numberOfTicks ~/ (numberOfTicks / 20)).toInt(); // About 20 marks max
-  }
-
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -672,7 +566,7 @@ class WheelCalendarState extends State<WheelCalendar> {
       );
     }
     
-    // Ensure currentDay is valid for the selected ring
+    // Ensure currentDay is valid
     if (selectedRingIndex != null && selectedRingIndex! < rings.length) {
       final maxDays = rings[selectedRingIndex!].numberOfTicks.toDouble();
       if (currentDay > maxDays) {
@@ -688,183 +582,156 @@ class WheelCalendarState extends State<WheelCalendar> {
       }
     }
     
-    // Calculate the actual value to use for the slider
-    double sliderValue = currentDay;
-    double sliderMax = _getSliderMax();
-    
-    if (sliderValue > sliderMax) {
-      sliderValue = sliderMax;
-    }
-    
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        // Date navigation row with left/right arrows and date in center
         Padding(
-          padding: const EdgeInsets.only(bottom: 5),
-          child: Text(
-            _getDayLabel(currentDay),
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        if (selectedRingIndex != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 15),
-            child: AnimatedOpacity(
-              opacity: 1.0,
-              duration: const Duration(milliseconds: 300),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                decoration: BoxDecoration(
-                  color: rings[selectedRingIndex!].baseColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: rings[selectedRingIndex!].baseColor.withOpacity(0.3),
-                    width: 1,
-                  ),
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Previous day button
+              IconButton(
+                icon: const Icon(
+                  Icons.chevron_left,
+                  color: Colors.white,
+                  size: 28,
                 ),
-                child: Text(
-                  rings[selectedRingIndex!].name,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: rings[selectedRingIndex!].baseColor,
-                    letterSpacing: 0.5,
+                onPressed: () {
+                  setState(() {
+                    currentDay = currentDay - 1;
+                    // Update all rings to the new day
+                    for (int i = 0; i < ringDays.length; i++) {
+                      ringDays[i] = currentDay;
+                    }
+                  });
+                },
+              ),
+              // Date display (clickable)
+              GestureDetector(
+                onTap: () => _showDatePicker(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white24,
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.calendar_today,
+                        color: Colors.white70,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _getDayLabel(currentDay),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
-          )
-        else
-          const SizedBox(height: 30),
+              // Next day button
+              IconButton(
+                icon: const Icon(
+                  Icons.chevron_right,
+                  color: Colors.white,
+                  size: 28,
+                ),
+                onPressed: () {
+                  setState(() {
+                    currentDay = currentDay + 1;
+                    // Update all rings to the new day
+                    for (int i = 0; i < ringDays.length; i++) {
+                      ringDays[i] = currentDay;
+                    }
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
         SizedBox(
           width: 400,
           height: 400,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapDown: (details) {
-              final center = Offset(200, 200);
-              final distance = (details.localPosition - center).distance;
-              
-              // Check rings from outer to inner
-              for (var i = rings.length - 1; i >= 0; i--) {
-                final ring = rings[i];
-                if (distance >= ring.innerRadius && 
-                    distance <= (ring.innerRadius + ring.thickness)) {
-                  setState(() {
-                    // Store the POSITION in the rings array, not the ring.index property
-                    selectedRingIndex = i;
-                    print('Selected ring: position=$i, id=${ring.id}, index=${ring.index}, name=${ring.name}');
-                  });
-                  break;
-                }
-              }
-            },
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                ...rings.map((ring) {
-                  // Find ring's position in the array
-                  final ringPosition = rings.indexOf(ring);
-                  return RingWidget(
-                    ring: ring,
-                    isSelected: selectedRingIndex == ringPosition,
-                    onTap: () {}, // Empty callback since we handle taps above
-                    dayRotation: ringDays.length > ringPosition ? ringDays[ringPosition] : 0.0,
-                    animationEnabled: !isSliding || selectedRingIndex == ringPosition,
-                    showLabels: showLabels,
-                  );
-                }).toList().reversed,
-                CentralCircle(radius: 50, onTap: _showDailySnapshot),
-              ],
-            ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              ...rings.map((ring) {
+                // Find ring's position in the array
+                final ringPosition = rings.indexOf(ring);
+                return RingWidget(
+                  ring: ring,
+                  isSelected: false, // No selected state anymore as we don't select individual rings
+                  onTap: () {}, // Empty callback since we don't select rings anymore
+                  dayRotation: ringDays.length > ringPosition ? ringDays[ringPosition] : 0.0,
+                  animationEnabled: true, // Always animate all rings
+                  showLabels: showLabels,
+                );
+              }).toList().reversed,
+              CentralCircle(radius: 50, onTap: _showDailySnapshot),
+            ],
           ),
         ),
-        const SizedBox(height: 20),
-        SizedBox(
-          height: 48,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Opacity(
-              opacity: selectedRingIndex != null ? 1.0 : 0.0,
-              child: Row(
-                children: [
-                  // Previous day button
-                  IconButton(
-                    icon: Icon(
-                      Icons.chevron_left,
-                      color: _getSelectedRingColor(),
-                    ),
-                    onPressed: selectedRingIndex != null && selectedRingIndex! < rings.length ? () {
-                      if (currentDay > 0) {
-                        setState(() {
-                          currentDay = currentDay - 1;
-                          // Make sure we have enough elements in ringDays
-                          while (ringDays.length <= selectedRingIndex!) {
-                            ringDays.add(0.0);
-                          }
-                          ringDays[selectedRingIndex!] = currentDay;
-                          for (int i = 0; i < ringDays.length; i++) {
-                            ringDays[i] = currentDay;
-                          }
-                        });
-                      }
-                    } : null,
-                  ),
-                  // Slider with appropriate tick marks
-                  Expanded(
-                    child: SliderTheme(
-                      data: SliderThemeData(
-                        activeTrackColor: _getSelectedRingColor(),
-                        thumbColor: _getSelectedRingColor(),
-                        overlayColor: _getSelectedRingColor().withOpacity(0.3),
-                        inactiveTrackColor: Colors.grey[800],
-                      ),
-                      child: Slider(
-                        value: sliderValue,
-                        min: 0,
-                        max: sliderMax,
-                        divisions: selectedRingIndex != null && selectedRingIndex! < rings.length ? 
-                            _calculateDivisionsForRing(rings[selectedRingIndex!].numberOfTicks) : 1,
-                        onChanged: selectedRingIndex != null && selectedRingIndex! < rings.length ? 
-                            _onSliderChanged : null,
-                        onChangeEnd: selectedRingIndex != null && selectedRingIndex! < rings.length ? 
-                            _onSliderChangeEnd : null,
-                      ),
-                    ),
-                  ),
-                  // Next day button
-                  IconButton(
-                    icon: Icon(
-                      Icons.chevron_right,
-                      color: _getSelectedRingColor(),
-                    ),
-                    onPressed: selectedRingIndex != null && selectedRingIndex! < rings.length ? () {
-                      final maxDays = rings[selectedRingIndex!].numberOfTicks.toDouble();
-                      if (currentDay < maxDays) {
-                        setState(() {
-                          currentDay = currentDay + 1;
-                          // Make sure we have enough elements in ringDays
-                          while (ringDays.length <= selectedRingIndex!) {
-                            ringDays.add(0.0);
-                          }
-                          ringDays[selectedRingIndex!] = currentDay;
-                          for (int i = 0; i < ringDays.length; i++) {
-                            ringDays[i] = currentDay;
-                          }
-                        });
-                      }
-                    } : null,
-                  ),
-                ],
+        // Space for future menu items
+        const SizedBox(height: 60),
+      ],
+    );
+  }
+
+  // New method to show the date picker
+  Future<void> _showDatePicker(BuildContext context) async {
+    final now = easternTimeZone;
+    final selectedDate = now.add(Duration(days: currentDay.round()));
+    
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime(1900),
+      lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Colors.white70,
+              onPrimary: Colors.black,
+              surface: Color(0xFF303030),
+              onSurface: Colors.white,
+            ),
+            dialogBackgroundColor: Colors.grey[850],
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
               ),
             ),
           ),
-        ),
-      ],
+          child: child!,
+        );
+      },
     );
+    
+    if (pickedDate != null) {
+      // Calculate the difference in days between the picked date and today
+      final difference = pickedDate.difference(now).inDays;
+      
+      setState(() {
+        currentDay = difference.toDouble();
+        // Update all rings to the new date
+        for (int i = 0; i < ringDays.length; i++) {
+          ringDays[i] = currentDay;
+        }
+      });
+    }
   }
 }
