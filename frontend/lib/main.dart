@@ -264,7 +264,7 @@ class WheelCalendarState extends State<WheelCalendar> {
   // Callback for when labels visibility changes
   Function(bool)? _onLabelsChanged;
   
-  final DateFormat dateFormat = DateFormat('EEEE, MMMM d, yyyy');
+  final DateFormat dateFormat = DateFormat('EEE, MMM d, yyyy');
   final easternTimeZone = DateTime.now().toUtc().subtract(const Duration(hours: 5));
 
   @override
@@ -285,10 +285,21 @@ class WheelCalendarState extends State<WheelCalendar> {
   void resetToToday() {
     setState(() {
       currentDay = 0;
-      // Reset all ring days to 0
+      
+      // Update all ring days to 0 for synchronous animation
       for (int i = 0; i < ringDays.length; i++) {
         ringDays[i] = 0;
       }
+      
+      // Show a brief message indicating return to today
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Returned to today'),
+          duration: Duration(seconds: 1),
+          backgroundColor: Colors.blueGrey,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     });
   }
   
@@ -588,78 +599,101 @@ class WheelCalendarState extends State<WheelCalendar> {
         // Date navigation row with left/right arrows and date in center
         Padding(
           padding: const EdgeInsets.only(bottom: 20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Previous day button
-              IconButton(
-                icon: const Icon(
-                  Icons.chevron_left,
-                  color: Colors.white,
-                  size: 28,
+          child: SizedBox(
+            width: 380, // Slightly smaller fixed width to ensure proper spacing
+            child: Row(
+              children: [
+                // Left side fixed width for arrow
+                SizedBox(
+                  width: 60,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.chevron_left,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        currentDay = currentDay - 1;
+                        // Update all rings to the new day
+                        for (int i = 0; i < ringDays.length; i++) {
+                          ringDays[i] = currentDay;
+                        }
+                      });
+                    },
+                  ),
                 ),
-                onPressed: () {
-                  setState(() {
-                    currentDay = currentDay - 1;
-                    // Update all rings to the new day
-                    for (int i = 0; i < ringDays.length; i++) {
-                      ringDays[i] = currentDay;
-                    }
-                  });
-                },
-              ),
-              // Date display (clickable)
-              GestureDetector(
-                onTap: () => _showDatePicker(context),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white24,
-                      width: 1,
+                // Date display (clickable) - will expand/contract as needed
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _showDatePicker(context),
+                    child: Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white10,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.calendar_today,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Wrap the text in a Flexible widget to prevent overflow
+                          Flexible(
+                            child: Text(
+                              _getDayLabel(currentDay),
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w300,
+                                color: Colors.white,
+                                letterSpacing: 1.0,
+                                height: 1.2,
+                                shadows: [
+                                  Shadow(
+                                    blurRadius: 4.0,
+                                    color: Colors.black38,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              overflow: TextOverflow.ellipsis, // Add ellipsis if text is too long
+                              maxLines: 1,
+                              softWrap: false,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.calendar_today,
-                        color: Colors.white70,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _getDayLabel(currentDay),
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
+                ),
+                // Right side fixed width for arrow
+                SizedBox(
+                  width: 60,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.chevron_right,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        currentDay = currentDay + 1;
+                        // Update all rings to the new day
+                        for (int i = 0; i < ringDays.length; i++) {
+                          ringDays[i] = currentDay;
+                        }
+                      });
+                    },
                   ),
                 ),
-              ),
-              // Next day button
-              IconButton(
-                icon: const Icon(
-                  Icons.chevron_right,
-                  color: Colors.white,
-                  size: 28,
-                ),
-                onPressed: () {
-                  setState(() {
-                    currentDay = currentDay + 1;
-                    // Update all rings to the new day
-                    for (int i = 0; i < ringDays.length; i++) {
-                      ringDays[i] = currentDay;
-                    }
-                  });
-                },
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         SizedBox(
@@ -684,8 +718,41 @@ class WheelCalendarState extends State<WheelCalendar> {
             ],
           ),
         ),
-        // Space for future menu items
-        const SizedBox(height: 60),
+        // Space for menu items
+        const SizedBox(height: 20),
+        // Bottom action buttons
+        Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Today button
+              if (currentDay != 0) // Only show if not already on today
+                TextButton.icon(
+                  icon: const Icon(
+                    Icons.today,
+                    color: Colors.white70,
+                    size: 20,
+                  ),
+                  label: const Text(
+                    'Today',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 16,
+                    ),
+                  ),
+                  onPressed: resetToToday,
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.black26,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -716,7 +783,35 @@ class WheelCalendarState extends State<WheelCalendar> {
               ),
             ),
           ),
-          child: child!,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Today button
+              if (child != null && currentDay != 0) // Only show if we're not already on today
+                Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.today, color: Colors.black87),
+                    label: const Text(
+                      'Return to Today', 
+                      style: TextStyle(color: Colors.black87),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).pop(now); // Return today's date
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white70,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                  ),
+                ),
+              Flexible(child: child!),
+            ],
+          ),
         );
       },
     );
